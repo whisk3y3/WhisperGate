@@ -117,7 +117,6 @@ MIN_PASS_LEN = 1
 ### Run
 
 ```bash
-source venv/bin/activate
 sudo python3 WhisperGate.py
 ```
 

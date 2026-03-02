@@ -138,7 +138,7 @@ Credentials are also printed to the WhisperGate console with timestamps and sour
 
 WhisperGate is designed for easy per-client rebranding:
 
-1. **Logo** — Replace `static/images/logo.png` with the client's logo (or a generic corporate logo)
+1. **Logo** — Replace `static/images/logo.png` with the client's logo (take the logo on ask ChatGPT to remove the background before saving)
 2. **Primary color** — Edit the `--color-primary` CSS variable in `static/css/styles.css`:
 
 ```css

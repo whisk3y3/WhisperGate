@@ -58,15 +58,16 @@ Results display in a professional table with compliance status badges. Below the
 
 ### Stage 3 — Verification Hold & Redirect
 
-After credential submission, a verification animation plays with step-by-step progress indicators. The target sees "Please standby while we verify your submission" — giving the operator time on the call. When ready, the "Next" button appears and redirects to `https://m365.cloud.microsoft/apps`.
+After credential submission, the simulation transitions into a staged verification sequence designed to mirror legitimate enterprise authentication workflows. The user is shown step by step progress indicators such as “Authenticating credentials” followed by “Verifying MFA,” which persists for approximately 30 seconds to replicate real world authentication delays.
 
-<p align="center">
-  <img src="screenshots/stage3_verifying.png" width="48%" alt="Verifying">
-</p>
+From a defensive standpoint, this phase is critical. Adversaries often use artificial verification screens to create urgency and normalize unexpected MFA prompts. During this window, a target may receive an unsolicited push notification, number matching request, or other multi factor challenge. Attackers rely on confusion, authority, or time pressure to persuade the user to approve the request. This is where you work your magic.
 
-<p align="center">
-  <img src="screenshots/stage3_next.png" width="48%" alt="Next Button">
-</p>
+Once the 30 second verification period concludes, the page displays “Verification complete.” The “Next” button then becomes available and redirects the user to https://m365.cloud.microsoft/apps
+.
+
+![Stage 3: Verifying](screenshots/stage3_verifying.png)
+
+![Stage 3: Next Button](screenshots/stage3_next.png)
 
 ---
 

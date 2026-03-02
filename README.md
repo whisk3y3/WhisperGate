@@ -117,12 +117,14 @@ MIN_PASS_LEN = 1
 ### Run
 
 ```bash
+tmux new -s server
 sudo python3 WhisperGate.py
 ```
 
 Open a second terminal to monitor captured credentials in real-time:
 
 ```bash
+tmux new -s creds
 tail -f credentials.txt
 ```
 

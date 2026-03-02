@@ -164,8 +164,8 @@ Adjust these constants in `templates/index.html`:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `SCAN_MS` | `8000` | How long the scan animation runs in ms (minimum ~5000 recommended) |
-| `NEXT_DELAY` | `30000` | How long before the Next button appears after cred submission (ms) |
+| `SCAN_MS` | `8000` | How long the scan animation runs in ms (8 seconds) |
+| `NEXT_DELAY` | `30000` | How long before the Next button appears after cred submission (30 seconds) |
 
 ---
 

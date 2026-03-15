@@ -1,9 +1,10 @@
 /* ── Variables (easy per-client rebranding) ──────── */
 :root {
-  --color-primary: #0078d4;       /* Microsoft-ish blue — swap per client */
+  --color-primary: #0078d4;
   --color-primary-hover: #106ebe;
   --color-success: #107c10;
   --color-warn: #d83b01;
+  --color-error: #a4262c;
   --color-bg: #f5f5f5;
   --color-card: #ffffff;
   --color-text: #323130;
@@ -30,7 +31,7 @@ body { font-family: var(--font); background: var(--color-bg); color: var(--color
 .brand { display: flex; align-items: center; gap: 10px; }
 .brand-logo { height: 24px; width: auto; }
 .brand-text { font-size: 14px; font-weight: 600; color: var(--color-text); }
-.badge-secure { font-size: 11px; color: var(--color-success); background: #f0fff0; padding: 3px 10px; border-radius: 12px; border: 1px solid #c8e6c9; }
+.top-bar-ref { font-size: 11px; color: var(--color-text-light); font-family: "Consolas", "Courier New", monospace; letter-spacing: 0.3px; }
 
 /* ── Footer ──────────────────────────────────────── */
 .footer { text-align: center; padding: 14px 20px; font-size: 11px; color: var(--color-text-light); border-top: 1px solid var(--color-border); background: var(--color-topbar); }
@@ -38,10 +39,8 @@ body { font-family: var(--font); background: var(--color-bg); color: var(--color
 /* ── Card ────────────────────────────────────────── */
 .card { background: var(--color-card); border: 1px solid var(--color-border); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
 .card-head { padding: 28px 32px 20px; text-align: center; border-bottom: 1px solid var(--color-border); }
-.card-icon { font-size: 32px; margin-bottom: 8px; }
 .card-head h1 { font-size: 20px; font-weight: 600; margin-bottom: 4px; color: var(--color-text); }
 .card-head .sub { font-size: 13px; color: var(--color-text-light); }
-.card-head .sub-mfa { font-size: 12px; color: var(--color-warn); font-style: italic; margin-top: 6px; }
 .card-logo { height: 40px; width: auto; margin-bottom: 10px; }
 .card-head-compact { padding-bottom: 16px; }
 
@@ -53,7 +52,7 @@ body { font-family: var(--font); background: var(--color-bg); color: var(--color
 /* ── Stage 1: Scan ───────────────────────────────── */
 .progress-wrap { padding: 24px 32px; }
 .progress-bar { height: 6px; background: #e1dfdd; border-radius: 3px; overflow: hidden; }
-.progress-fill { height: 100%; width: 0; background: var(--color-primary); border-radius: 3px; transition: width 0.15s linear, background-color 0.4s; }
+.progress-fill { height: 100%; width: 0; background: var(--color-primary); border-radius: 3px; transition: width 0.3s ease-out, background-color 0.4s; }
 .progress-fill.done { background: var(--color-success); }
 .progress-text { margin-top: 10px; font-size: 12px; color: var(--color-text-light); text-align: center; }
 
@@ -85,20 +84,52 @@ body { font-family: var(--font); background: var(--color-bg); color: var(--color
 .ss-total { background: #f3f2f1; color: var(--color-text-light); }
 .summary-note { font-size: 12px; color: var(--color-text-light); }
 
-/* ── Stage 2: MS-Style Login ─────────────────────── */
-.ms-login { padding: 28px 32px; border-top: 1px solid var(--color-border); background: #faf9f8; display: flex; justify-content: center; }
-.ms-login-card { width: 100%; max-width: 440px; background: #fff; border: 1px solid #e1dfdd; border-radius: 2px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); padding: 40px 32px 32px; }
-.ms-login-head { margin-bottom: 24px; }
-.ms-login-logo { height: 28px; width: auto; margin-bottom: 16px; }
-.ms-login-head h2 { font-size: 24px; font-weight: 600; color: #1b1b1b; margin-bottom: 4px; }
-.ms-login-head p { font-size: 13px; color: var(--color-text-light); }
-.ms-fg { margin-bottom: 16px; }
-.ms-fg input { width: 100%; padding: 8px 10px; font-size: 15px; font-family: var(--font); border: none; border-bottom: 2px solid #666; border-radius: 0; outline: none; background: transparent; transition: border-color 0.15s; }
-.ms-fg input:focus { border-bottom-color: var(--color-primary); }
-.ms-fg input::placeholder { color: #999; }
-.ms-btn { display: block; width: 100%; padding: 10px; font-size: 15px; font-weight: 600; font-family: var(--font); color: #fff; background: var(--color-primary); border: none; cursor: pointer; transition: background 0.15s; margin-top: 20px; }
-.ms-btn:hover { background: var(--color-primary-hover); }
-.ms-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+/* Submit button in results */
+.submit-wrap { padding: 24px 32px; text-align: center; border-top: 1px solid var(--color-border); }
+.submit-wrap .btn-primary { padding: 10px 32px; font-size: 14px; font-weight: 600; font-family: var(--font); color: #fff; background: var(--color-primary); border: none; border-radius: var(--radius); cursor: pointer; transition: background 0.15s; }
+.submit-wrap .btn-primary:hover { background: var(--color-primary-hover); }
+.submit-note { font-size: 12px; color: var(--color-text-light); margin-top: 8px; }
+
+/* ── SSO Login Pages (email + password) ──────────── */
+.sso-page { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 400px; }
+.sso-card { width: 100%; max-width: 440px; background: #fff; border: 1px solid #e1dfdd; border-radius: 2px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); padding: 44px 44px 36px; }
+.sso-logo { height: 28px; width: auto; margin-bottom: 20px; }
+.sso-card h2 { font-size: 24px; font-weight: 600; color: #1b1b1b; margin-bottom: 4px; }
+.sso-fg { margin: 16px 0; }
+.sso-fg input { width: 100%; padding: 8px 10px; font-size: 15px; font-family: var(--font); border: none; border-bottom: 2px solid #666; border-radius: 0; outline: none; background: transparent; transition: border-color 0.15s; color: var(--color-text); }
+.sso-fg input:focus { border-bottom-color: var(--color-primary); }
+.sso-fg input::placeholder { color: #999; }
+.sso-hint { font-size: 13px; color: var(--color-text-light); margin-bottom: 20px; }
+.sso-btn { display: block; width: 100%; padding: 10px; font-size: 15px; font-weight: 600; font-family: var(--font); color: #fff; background: var(--color-primary); border: none; cursor: pointer; transition: background 0.15s; }
+.sso-btn:hover { background: var(--color-primary-hover); }
+.sso-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.sso-user-banner { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; padding: 6px 0; }
+.sso-back { font-size: 18px; cursor: pointer; color: var(--color-text-light); transition: color 0.15s; padding: 2px 4px; }
+.sso-back:hover { color: var(--color-text); }
+.sso-user-email { font-size: 13px; color: var(--color-text); }
+
+.sso-forgot { display: block; font-size: 13px; color: var(--color-text-light); margin-top: 16px; text-decoration: none; }
+.sso-forgot:hover { color: var(--color-text); text-decoration: underline; }
+
+.sso-footer-links { margin-top: 16px; text-align: center; }
+.sso-footer-links a { font-size: 12px; color: var(--color-text-light); text-decoration: none; }
+.sso-footer-links a:hover { text-decoration: underline; }
+
+.sso-error { background: #fde7e9; border: 1px solid #f1bbbc; color: var(--color-error); padding: 10px 12px; font-size: 13px; border-radius: 2px; margin-bottom: 12px; line-height: 1.4; }
+.sso-error a { color: var(--color-error); }
+
+/* SSO loading animation */
+.sso-card-loading { text-align: center; padding: 60px 44px; }
+.sso-loading-dots { display: flex; justify-content: center; gap: 6px; margin-bottom: 16px; }
+.sso-loading-dots span { width: 8px; height: 8px; background: var(--color-primary); border-radius: 50%; animation: dotPulse 1.2s ease-in-out infinite; }
+.sso-loading-dots span:nth-child(2) { animation-delay: 0.2s; }
+.sso-loading-dots span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes dotPulse {
+  0%, 100% { opacity: 0.3; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1); }
+}
+.sso-loading-text { font-size: 13px; color: var(--color-text-light); }
 
 /* ── Stage 3: Verifying ──────────────────────────── */
 .verify-section { padding: 32px; text-align: center; }
@@ -115,6 +146,11 @@ body { font-family: var(--font); background: var(--color-bg); color: var(--color
 .vstep.step-active { color: var(--color-text); }
 .vstep.step-done { color: var(--color-success); }
 
+/* MFA notice — appears contextually during MFA step */
+.mfa-notice { max-width: 360px; margin: 0 auto 24px; padding: 16px; background: #fff4ce; border: 1px solid #f0e6b2; border-radius: var(--radius); text-align: center; animation: fadeIn 0.4s ease; }
+.mfa-notice-icon { font-size: 28px; margin-bottom: 8px; }
+.mfa-notice p { font-size: 13px; color: #5c5129; line-height: 1.5; }
+
 #nextWrap { animation: fadeIn 0.4s ease; }
 .next-msg { font-size: 13px; color: var(--color-success); margin-bottom: 16px; font-weight: 500; }
 #nextWrap .btn-primary { max-width: 200px; margin: 0 auto; display: block; padding: 10px; font-size: 14px; font-weight: 600; font-family: var(--font); color: #fff; background: var(--color-primary); border: none; border-radius: var(--radius); cursor: pointer; transition: background 0.15s; }
@@ -125,6 +161,7 @@ body { font-family: var(--font); background: var(--color-bg); color: var(--color
   .main-container { margin: 16px auto; }
   .card-head { padding: 20px 16px 16px; }
   .card-head h1 { font-size: 17px; }
-  .login-section, .progress-wrap, .scan-items, .verify-section { padding-left: 16px; padding-right: 16px; }
+  .progress-wrap, .scan-items, .verify-section, .submit-wrap { padding-left: 16px; padding-right: 16px; }
   .results-table th, .results-table td { padding: 8px 10px; font-size: 12px; }
+  .sso-card { padding: 32px 24px 28px; margin: 0 16px; }
 }

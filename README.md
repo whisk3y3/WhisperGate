@@ -11,6 +11,7 @@
 <p align="center">
   <a href="#features">Features</a> •
   <a href="#how-it-works">How It Works</a> •
+  <a href="#social-engineering-psychology">SE Psychology</a> •
   <a href="#operator-panel">Operator Panel</a> •
   <a href="#quick-start">Quick Start</a> •
   <a href="#customization">Customization</a> •
@@ -22,6 +23,8 @@
 ## Overview
 
 WhisperGate is a credential harvesting tool built for professional penetration testers conducting authorized phishing and vishing engagements. It presents a realistic endpoint compliance scanner that walks targets through a multi-stage flow — device scan, results review, SSO authentication, and an operator-controlled verification hold — giving operators full control over pacing during live phone-based social engineering.
+
+Every design decision in WhisperGate is rooted in social engineering psychology. This isn't a tool that was built to look pretty — it was built to exploit the way people make trust decisions under pressure. The [SE Psychology](#social-engineering-psychology) section below breaks down the reasoning behind each feature.
 
 The tool supports multiple simultaneous targets with per-target session isolation. Each target gets their own card on the operator panel with independent controls, status tracking, credential copy buttons, and notes. Operators can mark MFA bypass, release individual targets, and export everything to a formatted Excel report.
 
@@ -64,7 +67,7 @@ Built by [@whisk3y3](https://github.com/whisk3y3)
 
 ## How It Works
 
-WhisperGate walks the target through five stages:
+WhisperGate walks the target through five stages. Each stage is designed around a specific psychological principle — see the callouts below each stage and the full [SE Psychology](#social-engineering-psychology) section for deeper analysis.
 
 ### Stage 1 — Endpoint Compliance Scan
 
@@ -72,11 +75,15 @@ The page fingerprints the target's browser and builds compliance check results u
 
 > **Conference demo note:** On a Mac, the scan shows macOS, FileVault, XProtect, and Safari/Chrome. On Windows, it shows Windows 11, BitLocker, Defender, and Edge/Chrome. All derived from the browser's own telemetry.
 
+> **🧠 Why this works:** The scan creates a *commitment investment*. The target has now spent 12 seconds watching their device get "scanned" — they've invested time, and the results feel personalized because they reflect their actual system. Walking away now means that investment was wasted. The scan also establishes *authority framing*: the page is telling the target about their own device, which positions it as a system with knowledge and access the target doesn't have. People don't question tools that appear to know more than they do.
+
 ![Stage 1: Scanning](screenshots/stage1_scan.png)
 
 ### Stage 2 — Scan Results
 
 Results display in a compliance table with pass/fail badges. A "Submit to IT Helpdesk" button sits below the summary with a note: *"You will be prompted to authenticate with your [Org] account."*
+
+> **🧠 Why this works:** The results include deliberate failures — a missing security patch, flagged browser extensions. These create *anxiety and urgency*. The target now believes their device has a compliance problem, and the only path to resolution is the "Submit to IT Helpdesk" button. This is textbook *fear-then-relief*: introduce a threat, then offer a clear action to resolve it. The target isn't just willing to authenticate — they're motivated to. The "Submit" button is also intentionally separated from the login form. It feels like a natural handoff to an SSO provider, not a credential grab bolted onto a scan page.
 
 ![Stage 2: Results](screenshots/stage2_results.png)
 
@@ -85,6 +92,10 @@ Results display in a compliance table with pass/fail badges. A "Submit to IT Hel
 Clicking "Submit to IT Helpdesk" transitions to a standalone sign-in page. The target enters their email first, sees a loading screen (*"Taking you to your organization's sign-in page..."*), then the password page with the hint *"Sign in with your [Org] account."*
 
 The first password is rejected with *"Your account or password is incorrect."* The second attempt succeeds. Both are captured and logged.
+
+> **🧠 Why this works — the split flow:** Every modern identity provider (Microsoft Entra, Okta, Google Workspace) collects email and password on separate screens. Showing both fields on a single page is one of the most common tells of a phishing page — it looks like 2018 because it *is* 2018. The split flow with an org lookup animation in between matches what the target sees every day when they log into real work applications. Muscle memory takes over. They're not evaluating whether the page is real — they're just doing the thing they've done a thousand times.
+>
+> **🧠 Why this works — first-attempt rejection:** This is counterintuitive, which is why it's effective. Most people assume a fake site would accept any password — so when the page rejects their first attempt, it paradoxically *increases* trust. The target thinks "okay, this is actually checking my credentials against something real." They re-enter their password (often the same one, sometimes a different one), and the second attempt succeeds. The operator now has two captured passwords. A surprising number of people rotate between 2-3 passwords across different systems, so the first attempt might be their email password while the second is their VPN password. Both get logged with attempt numbers and both appear in the Excel export.
 
 <!-- Screenshots needed: stage3_email.png, stage3_org_lookup.png, stage3_password.png, stage3_password_error.png -->
 
@@ -105,6 +116,10 @@ This is the operator's working window. The target's card appears on the operator
 4. **Mark Compromised** on the operator panel (tags MFA bypass)
 5. **Release Target** → only that target sees the completion screen
 
+> **🧠 Why this works — the MFA notice:** The notice *"A verification request has been sent to your registered device"* appears exactly when the MFA step activates on screen. Seconds later, the target's phone buzzes with a real MFA push (because the operator just used their credentials to log in). The timing and the on-screen context make the push feel completely expected — the page told them it was coming, and now it arrived. Without the notice, an unexpected MFA prompt might make the target pause and call their real IT department. With the notice, they approve it without a second thought. This is *priming* — setting an expectation so that when the event occurs, the brain categorizes it as "normal" rather than "suspicious."
+>
+> **🧠 Why this works — indefinite hold:** The verification screen holds forever until the operator releases. There's no auto-timer that might fire too early (before the operator has authenticated) or too late (making the target suspicious). The operator has complete control. During a vishing call, this is critical — the operator can keep the target calm with "it's just verifying, sometimes this takes a minute" while they work through the MFA flow. The target sees animated progress indicators the entire time, which signals that something is happening. People are remarkably patient with loading screens as long as there's visible progress.
+
 ![Stage 4: Verifying](screenshots/stage3_verifying.png)
 
 ### Stage 5 — Completion
@@ -117,7 +132,49 @@ When released, the target sees:
 >
 > *You may close this window.*
 
-No redirect, no suspicion.
+> **🧠 Why this works — no redirect:** An earlier version of WhisperGate redirected to the Microsoft 365 apps page after release. The problem: if the target is already logged into M365 in another tab, landing on the apps page feels wrong — why would a compliance scan send me to Outlook? The completion screen avoids this entirely. "You may close this window" is exactly what real enterprise tools say after a form submission. It's boring, forgettable, and gives the target no reason to think about what just happened. The interaction ends on a note of closure, not confusion.
+
+---
+
+## Social Engineering Psychology
+
+Every feature in WhisperGate maps to a known social engineering principle. This section explains the psychology behind the design for operators who want to understand the "why" and for defenders who want to know what to train against.
+
+### Commitment & Consistency
+
+Once someone starts a process, they're psychologically inclined to finish it. The 12-second scan is a deliberate investment of the target's time and attention. By the time results appear, they've already committed to the flow. Abandoning it now feels like wasting the effort they've put in. Each stage deepens the commitment: scan → review results → click submit → enter email → enter password. By the time they're typing their password, they've made five consecutive decisions to continue. Backing out at step six feels inconsistent with the five "yes" decisions they've already made.
+
+### Authority & Institutional Trust
+
+The page presents itself as an internal IT compliance tool, not a login page. It uses enterprise visual language — compliance tables, policy reference numbers, status badges, branded headers — that signals institutional authority. People don't scrutinize tools that look like they belong to their employer. The browser fingerprinting amplifies this: when the scan "detects" your actual OS version, your real browser, and your correct screen resolution, it reinforces the belief that this tool has legitimate access to your system. It appears to know things about your device, which positions it as authoritative.
+
+### Fear-Then-Relief
+
+The scan intentionally flags failures — a missing security patch, flagged browser extensions. This creates mild anxiety: *"My device isn't compliant."* The "Submit to IT Helpdesk" button is the relief valve. The target isn't just willing to authenticate — they *want* to, because it resolves the threat. Attackers and marketers have used this pattern for decades: introduce a problem, then offer the solution. The target feels like they're *fixing* something, not giving something away.
+
+### Familiarity & Muscle Memory
+
+The split SSO flow (email → loading → password) isn't just realistic — it's *identical* to what the target does every morning when they log into work. Microsoft Entra ID, Okta, and Google Workspace all use this exact pattern. When the target sees it, their brain doesn't flag it for evaluation. It triggers the same motor routine they've executed hundreds of times: type email, click next, wait, type password, click sign in. You're not phishing their credentials — you're phishing their muscle memory.
+
+### Paradoxical Trust Through Rejection
+
+The first-attempt password rejection is WhisperGate's most counterintuitive feature. Common sense says "accept whatever the user types." But real authentication systems sometimes reject valid credentials on the first try (network timeouts, typos, expired sessions). A page that accepts *anything* on the first attempt is suspicious precisely because it's too easy. By rejecting once and accepting on the second try, WhisperGate mimics the minor friction of real authentication. The target's internal logic: "A fake site would have taken my password the first time. This one didn't. Therefore it's real." The bonus: you frequently capture two different passwords, because people instinctively try a different one when the first "doesn't work."
+
+### Priming & Expectation Setting
+
+The MFA notice (*"A verification request has been sent to your registered device"*) appears on screen seconds before the target's phone actually buzzes with a real MFA push. This is textbook priming. The brain has already categorized the incoming push as expected and legitimate before it even arrives. Without the notice, an unsolicited MFA prompt is suspicious — it's the number one thing security awareness training teaches people to watch for. With the notice, the target has a ready-made explanation: "The compliance tool said it was going to send me a verification request, and it did." The prompt goes from red flag to expected behavior.
+
+### Sunk Cost & Patience
+
+The indefinite verification hold works because the target has already invested significant time and effort: they watched the scan, reviewed results, authenticated, and entered their password twice. Walking away now means all of that was wasted. People will wait a remarkably long time on a loading screen if they've already committed to the process. The animated progress indicators (step-by-step checkmarks, a spinner, status messages) reinforce that something is happening — even though nothing is. As long as the page appears to be working, the target will wait. The operator controls the timing.
+
+### Closure & Forgettability
+
+The completion screen is deliberately boring. "Submission Complete. You may close this window." No redirect to a different site. No unexpected content. No reason to think twice about what just happened. The target's brain files the interaction under "routine IT task" and moves on. This is important for operational security — the longer the target spends thinking about the interaction after it's over, the higher the chance they mention it to a coworker or call IT. A clean, boring exit minimizes post-interaction scrutiny.
+
+### The Absence of Red Flags
+
+Some of WhisperGate's most important design decisions are about what it *doesn't* show. No "Encrypted Connection" badge (real enterprise apps don't advertise TLS). No email and password on the same page (every modern IdP splits them). No generic placeholder logo (you brand it per engagement). No uniform scan timing (real scans have variance). No automatic redirect after completion (avoids confusion). Each of these is a tell that exists in lower-quality phishing toolkits. WhisperGate's realism comes as much from removing red flags as from adding green ones.
 
 ---
 
@@ -348,6 +405,7 @@ WhisperGate/
 - Operator panel state persistence across refresh
 - `ORG_NAME` config for per-engagement branding
 - Completion screen ("You may close this window") replaces M365 redirect
+- Social Engineering Psychology section added to README
 
 ### v3.0
 - Browser fingerprint-aware scan results (OS, browser, resolution)

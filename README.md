@@ -23,7 +23,7 @@
 
 WhisperGate is a credential harvesting tool built for professional penetration testers conducting authorized phishing and vishing engagements. It presents a realistic endpoint compliance scanner that walks targets through a multi-stage flow — device scan, results review, SSO authentication, and an operator-controlled verification hold — giving operators full control over pacing during live phone-based social engineering.
 
-v3 introduces browser fingerprinting, a split SSO login flow mirroring real Microsoft/Entra ID authentication, first-attempt password rejection, a live operator control panel with one-click credential copy, and fully operator-controlled target release.
+The tool supports multiple simultaneous targets with per-target session isolation. Each target gets their own card on the operator panel with independent controls, status tracking, credential copy buttons, and notes. Operators can mark MFA bypass, release individual targets, and export everything to a formatted Excel report.
 
 Built by [@whisk3y3](https://github.com/whisk3y3)
 
@@ -32,26 +32,33 @@ Built by [@whisk3y3](https://github.com/whisk3y3)
 ## Features
 
 ### Core Flow
-- **Multi-stage pipeline** — scan → results → SSO email → org lookup → password → verification hold → operator release → M365 redirect
+- **Multi-stage pipeline** — scan → results → SSO email → org lookup → password → verification hold → operator release → completion
 - **Browser fingerprinting** — scan results are dynamically generated from the target's actual user agent, OS, browser version, screen resolution, and timezone
-- **Split SSO login** — email and password are collected on separate screens with an "org lookup" loading transition, mirroring real Microsoft/Okta/Entra ID flows
-- **First-attempt rejection** — the first password submission is rejected with a realistic error message, prompting the target to re-enter; both passwords are logged (configurable)
-- **Operator-controlled release** — the verification screen holds indefinitely until the operator explicitly releases the target from the control panel; no auto-timer
+- **Split SSO login** — email and password are collected on separate screens with a "Taking you to your organization's sign-in page..." loading transition, mirroring real Microsoft/Okta/Entra ID flows
+- **Per-engagement branding** — set `ORG_NAME` once and it flows through the SSO hint, org lookup screen, and completion message
+- **First-attempt rejection** — the first password submission is rejected with a realistic error message; both passwords are logged (configurable)
+- **Operator-controlled release** — the verification screen holds indefinitely until the operator releases that specific target
+- **Clean exit** — after release, the target sees "Submission Complete — You may close this window" instead of a redirect
 
-### Operator Tools
-- **Live WebSocket control panel** — real-time credential feed with per-credential copy buttons, accessible at `/operator?token=<your_token>`
-- **One-click credential copy** — each captured credential has its own Copy Username and Copy Password buttons for fast relay to a real login
-- **Manual target release** — the "Next" button only appears on the target's screen when the operator hits Release; the hold is indefinite by default
-- **Per-attempt logging** — credentials are logged with attempt number, timestamp, source IP, and user agent
+### Operator Panel
+- **Per-target cards** — each target gets their own card showing email, IP, session ID, all captured passwords, and a status badge
+- **Status progression** — Scanning → Captured → MFA Pending → Compromised → Released, updated in real-time
+- **Per-target isolation** — releasing one target doesn't affect any others; WebSocket rooms are scoped per session
+- **One-click credential copy** — Copy Username and Copy Latest Password buttons on each card, plus individual Copy buttons on every password entry
+- **Mark Compromised** — appears when a target is in MFA Pending status; tags the target as MFA bypassed before release
+- **Per-target notes** — textarea on every card for documenting outcomes; auto-saves and exports with the report
+- **Engagement timer** — running clock from first credential capture, plus per-target timers showing elapsed time since each target's first submission
+- **Stats dashboard** — Total Targets, Creds Captured, MFA Bypassed, and Released at a glance
+- **Excel export** — one-click download with two sheets: Captured Credentials (full details per attempt) and Engagement Summary
+- **State persistence** — refreshing the operator panel reloads all existing target data from the server
 
 ### Realism Details
 - **Session awareness** — page state persists across refreshes; targets who reload skip the scan and return to results
 - **Randomized scan timing** — each compliance check takes a different amount of time with natural variance
 - **OS-aware results** — scan output adapts per platform (BitLocker/FileVault/LUKS, Defender/XProtect/ClamAV, etc.)
 - **Contextual MFA notice** — appears only during the MFA verification step with a device approval prompt
-- **No "encrypted connection" badge** — replaced with a subtle policy reference number that real enterprise apps would show
+- **Subtle top bar** — policy reference number instead of an "encrypted connection" badge
 - **Favicon** — inline SVG shield icon so the browser tab looks legitimate
-- **Per-client branding** — swap logo and primary color via CSS variables
 
 ---
 
@@ -61,49 +68,56 @@ WhisperGate walks the target through five stages:
 
 ### Stage 1 — Endpoint Compliance Scan
 
-The page fingerprints the target's browser and builds a set of compliance check results using real device data. An animated scanner reveals each check one by one with randomized timing. The scan runs for approximately 12 seconds.
+The page fingerprints the target's browser and builds compliance check results using real device data. An animated scanner reveals each check with randomized timing over approximately 12 seconds.
 
-> **Conference demo note:** On a Mac, the scan correctly shows macOS, FileVault, XProtect, and Safari/Chrome. On Windows, it shows Windows 11, BitLocker, Defender, and Edge/Chrome. This is all derived from the browser's own telemetry — no plugins or special access required.
+> **Conference demo note:** On a Mac, the scan shows macOS, FileVault, XProtect, and Safari/Chrome. On Windows, it shows Windows 11, BitLocker, Defender, and Edge/Chrome. All derived from the browser's own telemetry.
 
 ![Stage 1: Scanning](screenshots/stage1_scan.png)
 
 ### Stage 2 — Scan Results
 
-Results display in a professional compliance table with pass/fail badges. A "Submit to IT Helpdesk" button sits below the summary. This separation is intentional — it makes the upcoming login feel like a legitimate SSO redirect rather than a form bolted onto the scan page.
+Results display in a compliance table with pass/fail badges. A "Submit to IT Helpdesk" button sits below the summary with a note: *"You will be prompted to authenticate with your [Org] account."*
 
 ![Stage 2: Results](screenshots/stage2_results.png)
 
 ### Stage 3 — SSO Authentication (Email → Password)
 
-Clicking "Submit to IT Helpdesk" transitions to a standalone Microsoft-style sign-in page. The target enters their email address first. A "Looking up your organization..." loading screen appears for 1.5–2.5 seconds (randomized), then the password page loads showing the entered email with a back arrow — exactly mirroring the real Microsoft/Entra ID flow.
+Clicking "Submit to IT Helpdesk" transitions to a standalone sign-in page. The target enters their email first, sees a loading screen (*"Taking you to your organization's sign-in page..."*), then the password page with the hint *"Sign in with your [Org] account."*
 
-**First-attempt rejection:** The first password submission returns an error: *"Your account or password is incorrect."* The target re-enters their password, which is accepted on the second attempt. Both passwords are captured and logged with attempt numbers. This technique increases believability (a fake site would accept anything) and frequently captures a second, different password.
+The first password is rejected with *"Your account or password is incorrect."* The second attempt succeeds. Both are captured and logged.
 
 <!-- Screenshots needed: stage3_email.png, stage3_org_lookup.png, stage3_password.png, stage3_password_error.png -->
 
 ### Stage 4 — Verification Hold & MFA Window
 
-After successful authentication, the page transitions to a staged verification sequence:
+After authentication, the page shows a staged verification sequence:
 
 1. **Authenticating credentials** (3s)
-2. **Verifying MFA** (7s) — a contextual notice appears: *"A verification request has been sent to your registered device. Please approve the prompt to continue."*
+2. **Verifying MFA** (7s) — contextual notice: *"A verification request has been sent to your registered device."*
 3. **Uploading scan results** (14s)
 4. **Awaiting confirmation** (20s+) — **holds indefinitely**
 
-The verification screen never auto-completes. The target sees the spinner and "Awaiting confirmation..." for as long as needed. This is the operator's working window:
+This is the operator's working window. The target's card appears on the operator panel:
 
-1. Credentials appear on the operator panel with Copy Username / Copy Password buttons
-2. The operator copies the credentials and pastes them into a real M365 login
-3. Microsoft sends an MFA push to the target's device
-4. The target approves the push (they're already primed by the on-screen MFA notice)
-5. Once the operator confirms successful authentication, they hit **Release Target** on the panel
-6. The target sees "Verification complete" and the Next button, which redirects to M365
-
-This gives the operator complete control over timing — no guessing, no race conditions, no premature release.
+1. **Copy Username** → paste into your M365 login tab
+2. **Copy Latest Password** → paste → submit
+3. Microsoft sends MFA push → target approves (primed by on-screen notice)
+4. **Mark Compromised** on the operator panel (tags MFA bypass)
+5. **Release Target** → only that target sees the completion screen
 
 ![Stage 4: Verifying](screenshots/stage3_verifying.png)
 
-![Stage 4: Next Button](screenshots/stage3_next.png)
+### Stage 5 — Completion
+
+When released, the target sees:
+
+> ✅ **Submission Complete**
+>
+> Your scan results have been submitted to the [Org] IT Helpdesk. No further action is required.
+>
+> *You may close this window.*
+
+No redirect, no suspicion.
 
 ---
 
@@ -115,31 +129,64 @@ Access the operator panel at:
 https://yourdomain.com/operator?token=changeme
 ```
 
-The panel provides:
+### Dashboard
 
-- **Live credential feed** — credentials appear in real-time via WebSocket as targets submit them, showing email, password, attempt number, IP, and timestamp
-- **Copy Username / Copy Password** — per-credential buttons for instant clipboard copy; buttons flash green with "Copied!" confirmation
-- **Capture counter** — running total of harvested credentials
-- **Release Target** — the only way the "Next" button appears on the target's screen; verification holds indefinitely until the operator acts
-- **Event log** — timestamped log of all operator actions
+The top stats bar shows real-time counts: Total Targets, Creds Captured, MFA Bypassed, and Released. An engagement timer starts when the first credential lands.
+
+### Target Cards
+
+Each target gets their own card with:
+
+- **Email and IP** with session ID
+- **Status badge** — Scanning → Captured → MFA Pending → Compromised → Released
+- **All captured passwords** with attempt numbers, timestamps, and individual Copy buttons
+- **Copy Username / Copy Latest Password** — quick-copy for relaying to a real login
+- **Mark Compromised** — appears during MFA Pending; tags the target as MFA bypassed
+- **Release Target** — sends the completion screen to that specific target only
+- **Notes** — textarea for documenting outcomes; auto-saves to the server
+- **Per-target timer** — elapsed time since first credential capture
+
+### Excel Export
+
+Click "Download Excel Report" in the sidebar. Generates a formatted `.xlsx` with:
+
+**Sheet 1 — Captured Credentials:**
+| Email | Password | Attempt | Timestamp | IP Address | User Agent | Status | MFA Bypassed | Released At | Notes |
+
+**Sheet 2 — Engagement Summary:**
+| Field | Value |
+|-------|-------|
+| Start Time | 2025-03-01 14:23:17 |
+| Export Time | 2025-03-01 15:45:02 |
+| Total Targets | 12 |
+| MFA Bypassed | 8 |
+| Organization | Contoso |
+
+Filename format: `WhisperGate_Contoso_20250301_154502.xlsx`
 
 ### Recommended Operator Workflow
 
 1. Open the operator panel in one browser window
-2. Open `https://login.microsoftonline.com` in another tab, ready to paste
+2. Open `https://login.microsoftonline.com` in another tab
 3. Call the target and direct them to the WhisperGate URL
-4. When credentials land in the feed: **Copy Username** → paste into M365 → **Copy Password** → paste → submit
-5. MFA push fires on the target's phone; talk them through approving it
-6. Once you're authenticated on your end, hit **Release Target**
-7. Target clicks "Next" and lands on the real M365 apps page — clean exit
+4. Credentials land on the target's card → **Copy Username** → paste → **Copy Latest Password** → paste → submit
+5. MFA push fires → talk the target through approving it
+6. Hit **Mark Compromised** on their card
+7. Hit **Release Target** — only that target sees the completion screen
+8. Repeat for additional targets
+9. **Download Excel Report** when the engagement wraps
 
-> **Conference tip:** Run the operator panel on a separate screen alongside the target view. The audience sees both perspectives simultaneously — the target's experience and the operator's real-time control surface.
+> **Conference tip:** Run the operator panel on a second screen. The audience sees both the target experience and the operator's real-time control surface with status changes, timers, and credential captures.
+
+### Multi-Target Note
+
+Each target operates in their own WebSocket room. Releasing target A has no effect on target B. Multiple operators can have the panel open simultaneously — they all see the same live feed.
 
 ---
 
 ## Quick Start
 
-> **Recommended:** Use an AWS EC2 instance (Ubuntu 22.04+, t2.micro) or similar VPS. This keeps phishing infrastructure isolated and gives you a clean public IP for DNS.
+> **Recommended:** Use an AWS EC2 instance (Ubuntu 22.04+, t2.micro) or similar VPS.
 
 ### Prerequisites
 
@@ -178,7 +225,18 @@ EMAIL_DOMAIN = '@targetcompany.com'
 MIN_PASS_LEN = 1
 ADMIN_TOKEN = 'your-secret-token'    # Change this!
 REJECT_FIRST_ATTEMPT = True          # Set False to accept first password
+ORG_NAME = 'Contoso'                 # Target org name
 ```
+
+### Branding Checklist
+
+Before each engagement:
+
+1. Set `ORG_NAME` in `WhisperGate.py`
+2. Replace `static/images/logo.png` with the target's logo
+3. Update `--color-primary` in `static/css/styles.css` to match the target's brand
+4. Update the brand text in `templates/index.html` if needed
+5. Update the reference number in the top bar if desired
 
 ### Run
 
@@ -197,8 +255,15 @@ Credentials are logged to `credentials.txt` and printed to the console in real-t
 
 ### Branding
 
-1. **Logo** — Replace `static/images/logo.png` with the target organization's logo
-2. **Primary color** — Edit `--color-primary` in `static/css/styles.css`:
+1. **Organization name** — Set `ORG_NAME` in `WhisperGate.py`. Flows through to:
+   - SSO login hint: *"Sign in with your [Org] account"*
+   - Org lookup screen: *"Taking you to your organization's sign-in page..."*
+   - Completion screen: *"Your scan results have been submitted to the [Org] IT Helpdesk."*
+   - Excel export: org name in the Engagement Summary sheet and filename
+
+2. **Logo** — Replace `static/images/logo.png` with the target organization's logo
+
+3. **Primary color** — Edit `--color-primary` in `static/css/styles.css`:
 
 ```css
 :root {
@@ -207,33 +272,33 @@ Credentials are logged to `credentials.txt` and printed to the console in real-t
 }
 ```
 
-3. **Brand text** — Update the header in `templates/index.html`:
+4. **Brand text** — Update the header in `templates/index.html`:
 
 ```html
 <span class="brand-text">Endpoint Security</span>
 ```
 
-4. **Reference number** — Change the policy ref in the top bar to match the target org's naming convention:
+5. **Reference number** — Change the policy ref in the top bar:
 
 ```html
 <span class="top-bar-ref">Ref: SEC-2024-0847</span>
 ```
 
-5. **Redirect URL** — Change the final redirect destination in the Next button `onclick` handler
-
 ### Scan Results
 
-The scan results are auto-generated from browser fingerprinting, but you can customize the `getFingerprint()` function in `templates/index.html` to add, remove, or modify checks. The two hardcoded failure items (Security Patch Level and Browser Extensions) can be adjusted to match the target environment.
+Scan results are auto-generated from browser fingerprinting. Customize the `getFingerprint()` function in `templates/index.html` to add, remove, or modify checks. The two hardcoded failure items (Security Patch Level and Browser Extensions) can be adjusted to match the target environment.
 
-### Timing
+### Configuration Reference
 
 | Variable | Location | Default | Description |
 |----------|----------|---------|-------------|
-| `SCAN_MS` | `index.html` | `12000` | Total scan duration in ms |
+| `ORG_NAME` | `WhisperGate.py` | `Contoso` | Target org name — used throughout SSO flow, completion, and export |
+| `EMAIL_DOMAIN` | `WhisperGate.py` | `@evilphishinc.com` | Target email domain |
 | `REJECT_FIRST_ATTEMPT` | `WhisperGate.py` | `True` | Whether to reject the first password |
 | `ADMIN_TOKEN` | `WhisperGate.py` | `changeme` | Access token for the operator panel |
+| `SCAN_MS` | `index.html` | `12000` | Total scan duration in ms |
 
-> **Note:** There is no hold timer to configure. The verification screen holds indefinitely until the operator releases the target from the control panel.
+> **Note:** There is no hold timer to configure. The verification screen holds indefinitely until the operator releases each target individually from the control panel.
 
 ---
 
@@ -241,8 +306,8 @@ The scan results are auto-generated from browser fingerprinting, but you can cus
 
 ```
 WhisperGate/
-├── WhisperGate.py              # Flask + SocketIO backend
-├── requirements.txt            # Python dependencies
+├── WhisperGate.py              # Flask + SocketIO backend with per-target rooms
+├── requirements.txt            # Python dependencies (flask, socketio, openpyxl)
 ├── credentials.txt             # Captured credentials (auto-created)
 ├── LICENSE
 ├── README.md
@@ -270,20 +335,30 @@ WhisperGate/
 
 ---
 
-## What's New in v3
+## Changelog
 
-| Feature | v2 | v3 |
-|---------|----|----|
-| Scan results | Hardcoded Windows checks | Browser fingerprint-aware (OS, browser, resolution) |
-| Login flow | Single form (email + password together) | Split SSO: email → org lookup → password |
-| Password capture | Accept first attempt | Reject first, accept second (both logged) |
-| Verification hold | Auto-timer (30s) with manual extend | Indefinite hold — operator-only release |
-| Operator controls | Console only | WebSocket panel with live feed + copy buttons |
-| MFA messaging | Premature warning in header | Contextual notice during MFA verification step |
-| Session handling | Re-scans on every refresh | Remembers state, skips to results on refresh |
-| Scan timing | Uniform intervals | Randomized per-check delays |
-| Top bar badge | "Encrypted Connection" | Subtle policy reference number |
-| Favicon | None | Inline SVG shield |
+### v3.1
+- Per-target WebSocket rooms — releasing one target doesn't affect others
+- Operator panel rewritten with per-target cards, status progression, and independent controls
+- Mark Compromised button for tagging MFA bypass before release
+- Per-target notes with auto-save
+- Engagement timer and per-target timers
+- Stats dashboard (targets, creds, MFA bypassed, released)
+- Excel export with Captured Credentials and Engagement Summary sheets
+- Operator panel state persistence across refresh
+- `ORG_NAME` config for per-engagement branding
+- Completion screen ("You may close this window") replaces M365 redirect
+
+### v3.0
+- Browser fingerprint-aware scan results (OS, browser, resolution)
+- Split SSO login: email → org lookup → password
+- First-attempt password rejection (both logged)
+- Operator-controlled verification hold (no auto-timer)
+- Contextual MFA notice during verification step
+- Session-aware refresh (skips scan on reload)
+- Randomized per-check scan delays
+- Policy reference number replaces "Encrypted Connection" badge
+- Inline SVG favicon
 
 ---
 

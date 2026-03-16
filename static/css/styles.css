@@ -151,6 +151,26 @@ body { font-family: var(--font); background: var(--color-bg); color: var(--color
 .mfa-notice-icon { font-size: 28px; margin-bottom: 8px; }
 .mfa-notice p { font-size: 13px; color: #5c5129; line-height: 1.5; }
 
+/* MFA Challenge — dynamic prompts from operator */
+.mfa-challenge { max-width: 400px; margin: 0 auto 24px; padding: 24px 28px; background: #ffffff; border: 1px solid #e1dfdd; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); text-align: center; animation: fadeIn 0.3s ease; }
+.mfa-challenge-icon { font-size: 36px; margin-bottom: 12px; }
+.mfa-challenge-title { font-size: 18px; font-weight: 600; color: #1b1b1b; margin-bottom: 8px; }
+.mfa-challenge-desc { font-size: 13px; color: var(--color-text-light); margin-bottom: 16px; line-height: 1.5; }
+.mfa-challenge-hint { font-size: 12px; color: var(--color-text-light); margin-top: 16px; font-style: italic; }
+
+/* Number match display */
+.mfa-number-display { font-size: 48px; font-weight: 700; color: var(--color-primary); letter-spacing: 8px; padding: 16px 0; font-family: "Segoe UI", -apple-system, sans-serif; }
+
+/* Push approval spinner */
+.mfa-push-spinner { width: 28px; height: 28px; border: 3px solid #e1dfdd; border-top-color: var(--color-primary); border-radius: 50%; margin: 16px auto; animation: spin 0.8s linear infinite; }
+
+/* Code input (TOTP / SMS) */
+.mfa-code-input-wrap { margin: 12px 0; }
+.mfa-code-input { width: 180px; padding: 12px 16px; font-size: 24px; font-weight: 600; font-family: "Segoe UI", monospace; text-align: center; letter-spacing: 6px; border: 2px solid #e1dfdd; border-radius: 4px; outline: none; transition: border-color 0.15s; color: var(--color-text); }
+.mfa-code-input:focus { border-color: var(--color-primary); }
+.mfa-verify-btn { display: inline-block; padding: 10px 40px; font-size: 14px; font-weight: 600; font-family: var(--font); color: #fff; background: var(--color-primary); border: none; border-radius: 4px; cursor: pointer; transition: background 0.15s; margin-top: 8px; }
+.mfa-verify-btn:hover { background: var(--color-primary-hover); }
+
 #nextWrap { animation: fadeIn 0.4s ease; }
 .completion-section { padding: 48px 32px; text-align: center; }
 .completion-icon { font-size: 48px; margin-bottom: 12px; }

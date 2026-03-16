@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WhisperGate — Operator Login</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --card: #161b22;
+      --border: #30363d;
+      --text: #e6edf3;
+      --text-dim: #8b949e;
+      --accent: #58a6ff;
+      --red: #f85149;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: "Consolas", "Courier New", monospace; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+
+    .login-card { background: var(--card); border: 1px solid var(--border); border-radius: 6px; padding: 40px 36px 32px; width: 100%; max-width: 380px; }
+    .login-card h1 { font-size: 18px; font-weight: 600; margin-bottom: 4px; }
+    .login-card h1 span { color: var(--accent); }
+    .login-card p { font-size: 12px; color: var(--text-dim); margin-bottom: 24px; }
+
+    .fg { margin-bottom: 16px; }
+    .fg label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-dim); margin-bottom: 6px; }
+    .fg input { width: 100%; padding: 10px 12px; font-size: 14px; font-family: inherit; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; color: var(--text); outline: none; transition: border-color 0.15s; }
+    .fg input:focus { border-color: var(--accent); }
+
+    .login-btn { display: block; width: 100%; padding: 10px; font-size: 13px; font-weight: 600; font-family: inherit; background: rgba(88,166,255,0.1); color: var(--accent); border: 1px solid var(--accent); border-radius: 4px; cursor: pointer; transition: all 0.15s; }
+    .login-btn:hover { background: rgba(88,166,255,0.2); }
+
+    .error-msg { background: rgba(248,81,73,0.1); border: 1px solid rgba(248,81,73,0.3); color: var(--red); padding: 8px 12px; border-radius: 4px; font-size: 12px; margin-bottom: 16px; }
+  </style>
+</head>
+<body>
+  <div class="login-card">
+    <h1><span>WhisperGate</span> Operator</h1>
+    <p>Enter your access token to continue.</p>
+
+    {% if error %}
+    <div class="error-msg">{{ error }}</div>
+    {% endif %}
+
+    <form method="POST" action="/operator/login">
+      <div class="fg">
+        <label>Access Token</label>
+        <input type="password" name="token" placeholder="Enter token" required autofocus autocomplete="off">
+      </div>
+      <button type="submit" class="login-btn">Authenticate</button>
+    </form>
+  </div>
+</body>
+</html>

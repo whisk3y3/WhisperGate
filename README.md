@@ -272,6 +272,7 @@ sudo certbot certonly --standalone -d yourdomain.com
 
 ### Configure
 
+<<<<<<< HEAD
 Edit `WhisperGate.py` and update:
 
 ```python
@@ -296,12 +297,42 @@ Before each engagement:
 3. Update `--color-primary` in `static/css/styles.css` to match the target's brand
 4. Update the brand text in `templates/index.html` if needed
 5. Update the reference number in the top bar if desired
+=======
+Run the setup wizard — it walks through every configuration option and updates all files automatically:
+
+```bash
+python3 setup.py
+```
+
+The wizard covers:
+
+- Organization name (flows through SSO, completion screen, and export)
+- Target email domain
+- Top bar brand text and policy reference number
+- Primary brand color (auto-generates hover color)
+- SSL certificate paths
+- Operator admin token (can auto-generate a secure random token)
+- First-attempt rejection toggle
+- Scan duration
+
+After the wizard finishes, SCP your logo and start the server:
+
+```bash
+scp ~/Desktop/logo.png whisper:~/WhisperGate/static/images/logo.png
+```
+
+> **Manual configuration:** If you prefer to edit files directly, all settings are in `WhisperGate.py` (config block at the top), `static/css/styles.css` (CSS variables), and `templates/index.html` (brand text, ref number, scan timing).
+>>>>>>> master
 
 ### Run
 
 ```bash
 tmux new -s server
+<<<<<<< HEAD
 sudo python3 WhisperGate.py
+=======
+sudo /home/ubuntu/WhisperGate/venv/bin/python3 WhisperGate.py
+>>>>>>> master
 ```
 
 The operator panel is available at `https://yourdomain.com/operator` (you'll be prompted for the access token on first visit).
@@ -366,6 +397,10 @@ Scan results are auto-generated from browser fingerprinting. Customize the `getF
 ```
 WhisperGate/
 ├── WhisperGate.py              # Flask + SocketIO backend with per-target rooms
+<<<<<<< HEAD
+=======
+├── setup.py                    # Interactive setup wizard for per-engagement config
+>>>>>>> master
 ├── requirements.txt            # Python dependencies (flask, socketio, openpyxl)
 ├── credentials.txt             # Captured credentials (auto-created)
 ├── LICENSE
@@ -398,6 +433,10 @@ WhisperGate/
 ## Changelog
 
 ### v3.1
+<<<<<<< HEAD
+=======
+- Interactive setup wizard (`setup.py`) for per-engagement configuration
+>>>>>>> master
 - Session-based operator authentication — token submitted via login form, never exposed in URL
 - Per-target WebSocket rooms — releasing one target doesn't affect others
 - Operator panel rewritten with per-target cards, status progression, and independent controls

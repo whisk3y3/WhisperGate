@@ -41,6 +41,7 @@ Built by [@whisk3y3](https://github.com/whisk3y3)
 - **Per-engagement branding** — set `ORG_NAME` once and it flows through the SSO hint, org lookup screen, and completion message
 - **First-attempt rejection** — the first password submission is rejected with a realistic error message; both passwords are logged (configurable)
 - **Operator-controlled release** — the verification screen holds indefinitely until the operator releases that specific target
+- **Real-time MFA relay** — operator can push any MFA challenge type (number match, push approval, TOTP, SMS) to the target's screen in real-time, and receive codes back from the target for two-way relay
 - **Clean exit** — after release, the target sees "Submission Complete — You may close this window" instead of a redirect
 
 ### Operator Panel
@@ -49,6 +50,11 @@ Built by [@whisk3y3](https://github.com/whisk3y3)
 - **Per-target isolation** — releasing one target doesn't affect any others; WebSocket rooms are scoped per session
 - **One-click credential copy** — Copy Username and Copy Latest Password buttons on each card, plus individual Copy buttons on every password entry
 - **Mark Compromised** — appears when a target is in MFA Pending status; tags the target as MFA bypassed before release
+- **MFA Relay** — four challenge types the operator can push to a target's screen in real-time:
+  - **Push Approval** — sends "Approve the request on your device" with a waiting spinner
+  - **Number Match** — operator enters the number (e.g. 86), target sees it displayed in large text with instructions to enter it in their authenticator app
+  - **TOTP Code** — target sees an input field to enter their 6-digit authenticator code; code relays back to the operator panel with a Copy button
+  - **SMS Code** — same two-way relay as TOTP but for SMS codes; operator can include the phone number hint (e.g. "ending in 4823")
 - **Per-target notes** — textarea on every card for documenting outcomes; auto-saves and exports with the report
 - **Engagement timer** — running clock from first credential capture, plus per-target timers showing elapsed time since each target's first submission
 - **Stats dashboard** — Total Targets, Creds Captured, MFA Bypassed, and Released at a glance
@@ -99,24 +105,53 @@ The first password is rejected with *"Your account or password is incorrect."* T
 
 <!-- Screenshots needed: stage3_email.png, stage3_org_lookup.png, stage3_password.png, stage3_password_error.png -->
 
-### Stage 4 — Verification Hold & MFA Window
+### Stage 4 — Verification Hold & MFA Relay
 
 After authentication, the page shows a staged verification sequence:
 
 1. **Authenticating credentials** (3s)
-2. **Verifying MFA** (7s) — contextual notice: *"A verification request has been sent to your registered device."*
+2. **Verifying MFA** (7s) — a default notice appears: *"A verification request has been sent to your registered device."*
 3. **Uploading scan results** (14s)
 4. **Awaiting confirmation** (20s+) — **holds indefinitely**
 
-This is the operator's working window. The target's card appears on the operator panel:
+This is the operator's working window. The target's card appears on the operator panel with credential copy buttons and an **MFA Relay** section.
 
-1. **Copy Username** → paste into your M365 login tab
-2. **Copy Latest Password** → paste → submit
-3. Microsoft sends MFA push → target approves (primed by on-screen notice)
-4. **Mark Compromised** on the operator panel (tags MFA bypass)
-5. **Release Target** → only that target sees the completion screen
+#### MFA Relay Workflow
 
-> **🧠 Why this works — the MFA notice:** The notice *"A verification request has been sent to your registered device"* appears exactly when the MFA step activates on screen. Seconds later, the target's phone buzzes with a real MFA push (because the operator just used their credentials to log in). The timing and the on-screen context make the push feel completely expected — the page told them it was coming, and now it arrived. Without the notice, an unexpected MFA prompt might make the target pause and call their real IT department. With the notice, they approve it without a second thought. This is *priming* — setting an expectation so that when the event occurs, the brain categorizes it as "normal" rather than "suspicious."
+The operator logs into M365 with the captured credentials and encounters an MFA challenge. Instead of hoping the target approves a random push, the operator pushes the exact challenge to the target's screen:
+
+**Number Match (most common with Microsoft Entra):**
+1. M365 shows "Enter 86 in your authenticator app"
+2. Operator clicks **Number Match**, types `86`, clicks **Send to Target**
+3. Target's screen switches to a Microsoft-style display showing **86** in large blue text
+4. Target enters 86 in their real authenticator app → operator is authenticated
+
+**Push Approval:**
+1. M365 sends a push notification
+2. Operator clicks **Push Approval**
+3. Target sees "Approve the request on your device" with a waiting spinner
+4. Target approves the push on their phone → operator is authenticated
+
+**TOTP Code (two-way relay):**
+1. M365 asks for a 6-digit authenticator code
+2. Operator clicks **TOTP Code**
+3. Target sees "Enter the code from your authenticator app" with an input field
+4. Target types their code and clicks Verify
+5. Code appears on operator panel as **CODE RECEIVED: 482916** with a Copy button
+6. Operator copies and pastes into M365 → authenticated
+
+**SMS Code (two-way relay):**
+1. M365 sends an SMS code to the target's phone
+2. Operator clicks **SMS Code**, optionally enters phone hint (e.g. "ending in 4823")
+3. Target sees "Enter the code sent to your phone ending in 4823" with an input field
+4. Target enters the SMS code and clicks Verify
+5. Code appears on operator panel → operator copies into M365 → authenticated
+
+After successful MFA bypass:
+1. **Mark Compromised** on the operator panel
+2. **Release Target** → target sees the completion screen
+
+> **🧠 Why this works — the MFA relay:** The verification hold screen has been reframed from a passive waiting page into a live, bidirectional communication channel between the operator and the target. The target never leaves the page. They see what looks like a standard Microsoft MFA challenge — because it *is* a standard MFA challenge, just rendered on a page the operator controls. The target doesn't question it because the challenge matches exactly what they'd expect during a real authentication flow. The operator controls what challenge appears and when, turning the target into an unwitting relay for their own MFA bypass.
 >
 > **🧠 Why this works — indefinite hold:** The verification screen holds forever until the operator releases. There's no auto-timer that might fire too early (before the operator has authenticated) or too late (making the target suspicious). The operator has complete control. During a vishing call, this is critical — the operator can keep the target calm with "it's just verifying, sometimes this takes a minute" while they work through the MFA flow. The target sees animated progress indicators the entire time, which signals that something is happening. People are remarkably patient with loading screens as long as there's visible progress.
 
@@ -162,7 +197,13 @@ The first-attempt password rejection is WhisperGate's most counterintuitive feat
 
 ### Priming & Expectation Setting
 
-The MFA notice (*"A verification request has been sent to your registered device"*) appears on screen seconds before the target's phone actually buzzes with a real MFA push. This is textbook priming. The brain has already categorized the incoming push as expected and legitimate before it even arrives. Without the notice, an unsolicited MFA prompt is suspicious — it's the number one thing security awareness training teaches people to watch for. With the notice, the target has a ready-made explanation: "The compliance tool said it was going to send me a verification request, and it did." The prompt goes from red flag to expected behavior.
+The default MFA notice (*"A verification request has been sent to your registered device"*) appears on screen seconds before the target's phone actually buzzes with a real MFA push. This is textbook priming. The brain has already categorized the incoming push as expected and legitimate before it even arrives. Without the notice, an unsolicited MFA prompt is suspicious — it's the number one thing security awareness training teaches people to watch for. With the notice, the target has a ready-made explanation: "The compliance tool said it was going to send me a verification request, and it did." The prompt goes from red flag to expected behavior.
+
+### Real-Time MFA Relay as Social Engineering
+
+The MFA relay takes priming a step further. Instead of a generic "approve the request" notice, the operator pushes the *exact* challenge the target needs to complete — a specific number to match, an input field for their TOTP code, or an SMS code prompt with their phone number hint. The target sees what looks like a completely normal Microsoft MFA screen because it *is* a normal MFA challenge, just rendered on a page the operator controls.
+
+This works because the target is already deep in the commitment chain: they've watched the scan, reviewed results, authenticated twice, and are now "waiting for verification." When the MFA challenge appears, it's just the next expected step. The target doesn't question why the compliance tool is asking for MFA — they've been primed to expect it. The two-way relay (TOTP/SMS) is particularly powerful because the target actively participates in their own MFA bypass by typing their code into the attacker's page, believing they're completing a legitimate verification step.
 
 ### Sunk Cost & Patience
 
@@ -229,7 +270,11 @@ Filename format: `WhisperGate_Contoso_20250301_154502.xlsx`
 2. Open `https://login.microsoftonline.com` in another tab
 3. Call the target and direct them to the WhisperGate URL
 4. Credentials land on the target's card → **Copy Username** → paste → **Copy Latest Password** → paste → submit
-5. MFA push fires → talk the target through approving it
+5. M365 presents an MFA challenge → select the matching type in the MFA Relay section:
+   - Number match → type the number → **Send to Target**
+   - Push → click **Push Approval**
+   - TOTP → click **TOTP Code** → wait for code to relay back → **Copy Code** → paste into M365
+   - SMS → click **SMS Code** → wait for code to relay back → **Copy Code** → paste into M365
 6. Hit **Mark Compromised** on their card
 7. Hit **Release Target** — only that target sees the completion screen
 8. Repeat for additional targets
@@ -399,6 +444,7 @@ WhisperGate/
 ## Changelog
 
 ### v3.1
+- **Real-time MFA relay** — operator can push number match, push approval, TOTP, or SMS challenges to individual targets; TOTP/SMS codes relay back to the operator panel with one-click copy
 - Interactive setup wizard (`setup.py`) for per-engagement configuration
 - Session-based operator authentication — token submitted via login form, never exposed in URL
 - Per-target WebSocket rooms — releasing one target doesn't affect others

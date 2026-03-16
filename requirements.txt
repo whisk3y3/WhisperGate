@@ -1,7 +1,4 @@
 flask>=3.0
 flask-socketio>=5.3
 python-socketio>=5.10
-<<<<<<< HEAD
-=======
 openpyxl>=3.1
->>>>>>> master

